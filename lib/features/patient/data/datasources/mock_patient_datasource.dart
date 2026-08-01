@@ -1,0 +1,98 @@
+import '../../../../shared/mock/mock_database.dart';
+import '../../../../shared/utils/id_generator.dart';
+import '../../../../shared/utils/mock_latency.dart';
+import '../../domain/entities/patient_profile.dart';
+import '../../domain/entities/wellness_goal.dart';
+import 'patient_datasource.dart';
+
+class MockPatientDataSource implements PatientDataSource {
+  MockPatientDataSource(this._db);
+
+  final MockDatabase _db;
+
+  @override
+  PatientProfile? getProfile(String patientId) {
+    for (final p in _db.patients) {
+      if (p.id == patientId) return p;
+    }
+    return null;
+  }
+
+  @override
+  List<WellnessGoal> getWellnessGoals(String patientId) =>
+      _db.wellnessGoals.where((g) => g.patientId == patientId).toList();
+
+  @override
+  Future<PatientProfile> completeOnboarding({
+    required String patientId,
+    required String assignedDoctorId,
+    required List<WellnessGoalType> selectedGoals,
+  }) async {
+    await simulateLatency();
+    final profile = PatientProfile(
+      id: patientId,
+      dateOfBirth: DateTime(2000, 1, 1),
+      gender: 'Not specified',
+      bloodType: 'Unknown',
+      heightCm: 170,
+      weightKg: 70,
+      allergies: const [],
+      chronicConditions: const [],
+      currentMedications: const [],
+      assignedDoctorId: assignedDoctorId,
+    );
+    _db.patients.add(profile);
+
+    final now = DateTime.now();
+    final endOfWeek = now.add(Duration(days: 7 - now.weekday));
+    for (final type in selectedGoals) {
+      final (target, unit) = switch (type) {
+        WellnessGoalType.exercise => (5.0, 'sessions'),
+        WellnessGoalType.hydration => (8.0, 'glasses'),
+        WellnessGoalType.sleep => (8.0, 'hours avg'),
+        WellnessGoalType.diet => (3.0, 'meals logged'),
+        WellnessGoalType.custom => (1.0, 'times'),
+      };
+      _db.wellnessGoals.add(
+        WellnessGoal(
+          id: generateId(),
+          patientId: patientId,
+          type: type,
+          name: type.label,
+          targetValue: target,
+          currentValue: 0,
+          unit: unit,
+          status: GoalStatus.onTrack,
+          targetDate: endOfWeek,
+        ),
+      );
+    }
+    return profile;
+  }
+
+  @override
+  Future<PatientProfile> updateProfile(
+    String patientId, {
+    double? heightCm,
+    double? weightKg,
+    List<String>? allergies,
+  }) async {
+    await simulateLatency();
+    final i = _db.patients.indexWhere((p) => p.id == patientId);
+    if (i == -1) throw StateError('Patient profile not found');
+    final updated = _db.patients[i].copyWith(
+      heightCm: heightCm,
+      weightKg: weightKg,
+      allergies: allergies,
+    );
+    _db.patients[i] = updated;
+    return updated;
+  }
+
+  @override
+  Future<void> deleteAccount(String patientId) async {
+    await simulateLatency();
+    _db.patients.removeWhere((p) => p.id == patientId);
+    _db.users.removeWhere((u) => u.id == patientId);
+  }
+}
