@@ -16,8 +16,11 @@ import '../../../health_tips/data/health_tips_data.dart';
 import '../../../health_tips/presentation/pages/health_tips_page.dart';
 import '../../../health_tips/presentation/widgets/health_tip_card.dart';
 import '../../../patient/presentation/providers/patient_providers.dart';
+import '../../domain/health_insights.dart';
+import '../widgets/health_snapshot_card.dart';
 import '../widgets/next_appointment_banner.dart';
 import '../widgets/wellness_goal_row.dart';
+import '../widgets/wellness_insight_card.dart';
 
 /// P4 — Patient Dashboard: two big hero actions (Book Appointment,
 /// Prescriptions) up top, a Health Tips strip, then goals/next-appointment/
@@ -32,6 +35,8 @@ class DashboardPage extends ConsumerWidget {
     if (user == null) return const SizedBox.shrink();
 
     final goals = ref.watch(wellnessGoalsProvider(user.id));
+    final profile = ref.watch(patientProfileProvider(user.id));
+    final insights = profile == null ? const <HealthInsight>[] : buildHealthInsights(profile, goals);
     final nextAppointment = ref.watch(nextUpcomingAppointmentProvider(user.id));
     final doctor = nextAppointment == null
         ? null
@@ -99,6 +104,23 @@ class DashboardPage extends ConsumerWidget {
                 ),
               ],
             ),
+            if (profile != null) ...[
+              const SizedBox(height: 20),
+              HealthSnapshotCard(profile: profile),
+            ],
+            if (insights.isNotEmpty) ...[
+              const SizedBox(height: 20),
+              Text('Wellness Insights', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 10),
+              Column(
+                children: [
+                  for (final insight in insights) ...[
+                    WellnessInsightCard(insight: insight),
+                    const SizedBox(height: 8),
+                  ],
+                ],
+              ),
+            ],
             const SizedBox(height: 24),
             SectionHeader(
               title: 'Health Tips',
@@ -137,7 +159,7 @@ class DashboardPage extends ConsumerWidget {
                 nextAppointment.scheduledAt.month == now.month &&
                 nextAppointment.scheduledAt.day == now.day) ...[
               GestureDetector(
-                onTap: () => context.push(RoutePaths.patientQueueNumber),
+                onTap: () => context.go(RoutePaths.patientQueue),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   margin: const EdgeInsets.only(bottom: 12),

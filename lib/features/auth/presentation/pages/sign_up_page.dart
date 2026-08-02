@@ -1,19 +1,22 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../config/router/route_paths.dart';
+import '../../../../config/theme/app_theme.dart';
 import '../../../../shared/presentation/widgets/app_text_field.dart';
 import '../../../../shared/presentation/widgets/large_title_app_bar.dart';
 import '../../../../shared/presentation/widgets/primary_button.dart';
 import '../../../../shared/utils/validators.dart';
-import '../../domain/entities/user_role.dart';
 import '../providers/auth_providers.dart';
 import '../state/auth_state.dart';
 import '../widgets/password_strength_hint.dart';
-import '../widgets/role_select_field.dart';
 
-/// P2 — Sign Up, with inline per-field validation.
+/// P2 — Sign Up. Patient self-registration only: there is no role picker
+/// here by design, so this form can never create a doctor/pharmacist
+/// account. Staff accounts are provisioned by a doctor in the web
+/// dashboard's Staff Management screen instead.
 class SignUpPage extends ConsumerStatefulWidget {
   const SignUpPage({super.key});
 
@@ -25,7 +28,6 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  UserRole _role = UserRole.patient;
   bool _touchedName = false;
   bool _touchedEmail = false;
   bool _touchedPassword = false;
@@ -59,21 +61,18 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
           email: _emailController.text,
           password: _passwordController.text,
           fullName: _nameController.text,
-          role: _role,
         );
     if (!mounted) return;
     final state = ref.read(authControllerProvider);
     if (state is AuthAuthenticated) {
-      if (_role == UserRole.patient) {
-        context.go(RoutePaths.onboardingWellnessGoals);
-      } else {
-        context.go(RoutePaths.login);
-      }
+      context.go(RoutePaths.onboardingWellnessGoals);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (kIsWeb) return const _WebSignUpBlocked();
+
     final authState = ref.watch(authControllerProvider);
     final loading = authState is AuthLoading;
 
@@ -118,14 +117,44 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
               onChanged: (_) => setState(() {}),
             ),
             PasswordStrengthHint(password: _passwordController.text),
-            const SizedBox(height: 20),
-            RoleSelectField(value: _role, onChanged: (r) => setState(() => _role = r)),
             const SizedBox(height: 28),
             PrimaryButton(
               label: 'Create Account',
               onPressed: _isFormValid ? _submit : null,
               loading: loading,
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WebSignUpBlocked extends StatelessWidget {
+  const _WebSignUpBlocked();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Scaffold(
+      appBar: const LargeTitleAppBar(title: 'Create Account'),
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.phone_iphone_rounded, size: 40, color: colors.textSecondary),
+            const SizedBox(height: 16),
+            Text('Patient registration is mobile-only', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 8),
+            Text(
+              'Create your MyPulse360 account from the mobile app. This web dashboard is for clinic staff — '
+              'doctor and pharmacist accounts are set up by your clinic administrator.',
+              style: TextStyle(color: colors.textSecondary, fontSize: 13, height: 1.5),
+            ),
+            const SizedBox(height: 20),
+            PrimaryButton(label: 'Back to sign in', onPressed: () => context.go(RoutePaths.login)),
           ],
         ),
       ),

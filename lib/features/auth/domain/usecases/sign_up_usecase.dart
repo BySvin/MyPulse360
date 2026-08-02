@@ -1,5 +1,4 @@
 import '../entities/app_user.dart';
-import '../entities/user_role.dart';
 import '../repositories/auth_repository.dart';
 
 class SignUpUseCase {
@@ -11,7 +10,6 @@ class SignUpUseCase {
     required String email,
     required String password,
     required String fullName,
-    required UserRole role,
   }) =>
-      _repository.signUp(email: email, password: password, fullName: fullName, role: role);
+      _repository.signUp(email: email, password: password, fullName: fullName);
 }

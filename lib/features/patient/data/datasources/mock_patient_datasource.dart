@@ -29,11 +29,12 @@ class MockPatientDataSource implements PatientDataSource {
     required List<WellnessGoalType> selectedGoals,
   }) async {
     await simulateLatency();
+    // Height/weight need a real (non-null) starting value since the entity
+    // requires them; the Health Profile Setup step immediately overwrites
+    // these. DOB/gender/blood type stay genuinely null until the patient
+    // chooses to provide them.
     final profile = PatientProfile(
       id: patientId,
-      dateOfBirth: DateTime(2000, 1, 1),
-      gender: 'Not specified',
-      bloodType: 'Unknown',
       heightCm: 170,
       weightKg: 70,
       allergies: const [],
@@ -76,6 +77,10 @@ class MockPatientDataSource implements PatientDataSource {
     double? heightCm,
     double? weightKg,
     List<String>? allergies,
+    DateTime? dateOfBirth,
+    String? gender,
+    String? bloodType,
+    List<String>? chronicConditions,
   }) async {
     await simulateLatency();
     final i = _db.patients.indexWhere((p) => p.id == patientId);
@@ -84,6 +89,10 @@ class MockPatientDataSource implements PatientDataSource {
       heightCm: heightCm,
       weightKg: weightKg,
       allergies: allergies,
+      dateOfBirth: dateOfBirth,
+      gender: gender,
+      bloodType: bloodType,
+      chronicConditions: chronicConditions,
     );
     _db.patients[i] = updated;
     return updated;

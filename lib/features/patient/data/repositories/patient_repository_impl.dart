@@ -32,8 +32,21 @@ class PatientRepositoryImpl implements PatientRepository {
     double? heightCm,
     double? weightKg,
     List<String>? allergies,
+    DateTime? dateOfBirth,
+    String? gender,
+    String? bloodType,
+    List<String>? chronicConditions,
   }) =>
-      _dataSource.updateProfile(patientId, heightCm: heightCm, weightKg: weightKg, allergies: allergies);
+      _dataSource.updateProfile(
+        patientId,
+        heightCm: heightCm,
+        weightKg: weightKg,
+        allergies: allergies,
+        dateOfBirth: dateOfBirth,
+        gender: gender,
+        bloodType: bloodType,
+        chronicConditions: chronicConditions,
+      );
 
   @override
   Future<void> deleteAccount(String patientId) => _dataSource.deleteAccount(patientId);

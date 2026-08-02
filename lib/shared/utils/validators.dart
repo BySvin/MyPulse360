@@ -22,6 +22,19 @@ abstract final class Validators {
     return null;
   }
 
+  static String? positiveNumber(
+    String? value, {
+    String field = 'This field',
+    double min = 0,
+    double max = double.infinity,
+  }) {
+    if (value == null || value.trim().isEmpty) return '$field is required';
+    final parsed = double.tryParse(value.trim());
+    if (parsed == null) return 'Enter a valid number';
+    if (parsed < min || parsed > max) return '$field must be between ${min.toStringAsFixed(0)} and ${max.toStringAsFixed(0)}';
+    return null;
+  }
+
   static bool isStrongPassword(String password) =>
       password.length >= 8 &&
       RegExp(r'[A-Z]').hasMatch(password) &&

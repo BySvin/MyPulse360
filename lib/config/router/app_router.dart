@@ -4,9 +4,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/appointments/presentation/pages/appointment_detail_page.dart';
 import '../../features/appointments/presentation/pages/appointments_list_page.dart';
-import '../../features/appointments/presentation/pages/book_appointment_page.dart';
 import '../../features/appointments/presentation/pages/queue_number_page.dart';
 import '../../features/auth/domain/entities/user_role.dart';
+import '../../features/auth/presentation/pages/force_password_change_page.dart';
 import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/auth/presentation/pages/sign_up_page.dart';
 import '../../features/auth/presentation/pages/splash_page.dart';
@@ -15,10 +15,12 @@ import '../../features/auth/presentation/state/auth_state.dart';
 import '../../features/chatbot/presentation/pages/health_assistant_page.dart';
 import '../../features/doctor/presentation/pages/doctor_dashboard_page.dart';
 import '../../features/doctor/presentation/pages/patient_history_page.dart';
+import '../../features/doctor/presentation/pages/staff_management_page.dart';
 import '../../features/health_dashboard/domain/entities/metric_type.dart';
 import '../../features/health_dashboard/presentation/pages/dashboard_page.dart';
 import '../../features/health_dashboard/presentation/pages/health_metric_detail_page.dart';
 import '../../features/health_dashboard/presentation/pages/health_overview_page.dart';
+import '../../features/patient/presentation/pages/health_profile_setup_page.dart';
 import '../../features/patient/presentation/pages/onboarding_wellness_goals_page.dart';
 import '../../features/patient/presentation/pages/profile_page.dart';
 import '../../features/patient/presentation/providers/patient_providers.dart';
@@ -62,6 +64,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
 
       final user = authState.user;
+      if (user.mustChangePassword) {
+        return loc == RoutePaths.forcePasswordChange ? null : RoutePaths.forcePasswordChange;
+      }
+
       final onboarded =
           user.role != UserRole.patient || ref.read(onboardingCompleteProvider(user.id));
       if (!onboarded) {
@@ -70,7 +76,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             : RoutePaths.onboardingWellnessGoals;
       }
 
-      if (isAuthRoute || loc == RoutePaths.onboardingWellnessGoals) {
+      if (isAuthRoute || loc == RoutePaths.onboardingWellnessGoals || loc == RoutePaths.forcePasswordChange) {
         return kRoleNavConfig[user.role]!.rootPath;
       }
       return null;
@@ -80,8 +86,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: RoutePaths.login, builder: (_, _) => const LoginPage()),
       GoRoute(path: RoutePaths.signUp, builder: (_, _) => const SignUpPage()),
       GoRoute(
+        path: RoutePaths.forcePasswordChange,
+        builder: (_, _) => const ForcePasswordChangePage(),
+      ),
+      GoRoute(
         path: RoutePaths.onboardingWellnessGoals,
         builder: (_, _) => const OnboardingWellnessGoalsPage(),
+      ),
+      GoRoute(
+        path: RoutePaths.onboardingHealthProfile,
+        builder: (_, _) => const HealthProfileSetupPage(),
       ),
       GoRoute(
         path: RoutePaths.patientHealthMetricDetail,
@@ -102,18 +116,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: RoutePaths.patientAppointmentDetail,
         builder: (_, state) => AppointmentDetailPage(appointmentId: state.pathParameters['appointmentId']!),
       ),
-      GoRoute(
-        path: RoutePaths.patientQueueNumber,
-        builder: (_, _) => const QueueNumberPage(),
-      ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) => AppShellScaffold(
           navigationShell: shell,
           items: kRoleNavConfig[UserRole.patient]!.items,
-          centerActionIcon: Icons.add_rounded,
-          centerActionOnTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const BookAppointmentPage()),
-          ),
         ),
         branches: [
           StatefulShellBranch(
@@ -131,10 +137,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           StatefulShellBranch(
             routes: [
-              GoRoute(
-                path: RoutePaths.patientPrescriptions,
-                builder: (_, _) => const PrescriptionsListPage(),
-              ),
+              GoRoute(path: RoutePaths.patientQueue, builder: (_, _) => const QueueNumberPage()),
             ],
           ),
           StatefulShellBranch(
@@ -142,6 +145,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: RoutePaths.patientAssistant,
                 builder: (_, _) => const HealthAssistantPage(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: RoutePaths.patientPrescriptions,
+                builder: (_, _) => const PrescriptionsListPage(),
               ),
             ],
           ),
@@ -172,6 +183,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(
             routes: [
               GoRoute(path: RoutePaths.doctorDashboard, builder: (_, _) => const DoctorDashboardPage()),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: RoutePaths.doctorStaffManagement,
+                builder: (_, _) => const StaffManagementPage(),
+              ),
             ],
           ),
         ],

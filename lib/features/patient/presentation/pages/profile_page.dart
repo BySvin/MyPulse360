@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../config/router/route_paths.dart';
 import '../../../../config/theme/app_theme.dart';
@@ -98,10 +99,24 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   ),
                 ),
                 GroupedListTile(
+                  title: 'Date of Birth',
+                  leadingIcon: Icons.cake_outlined,
+                  detail: profile.dateOfBirth == null
+                      ? 'Not set'
+                      : DateFormat.yMMMd().format(profile.dateOfBirth!),
+                  onTap: () => showEditHealthProfileSheet(context, ref, profile),
+                ),
+                GroupedListTile(
+                  title: 'Gender',
+                  leadingIcon: Icons.wc_outlined,
+                  detail: profile.gender ?? 'Not set',
+                  onTap: () => showEditHealthProfileSheet(context, ref, profile),
+                ),
+                GroupedListTile(
                   title: 'Blood Type',
                   leadingIcon: Icons.bloodtype_outlined,
-                  detail: profile.bloodType,
-                  showChevron: false,
+                  detail: profile.bloodType ?? 'Not set',
+                  onTap: () => showEditHealthProfileSheet(context, ref, profile),
                 ),
                 GroupedListTile(
                   title: 'Height',
@@ -125,7 +140,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   title: 'Chronic Conditions',
                   leadingIcon: Icons.favorite_border,
                   detail: profile.chronicConditions.isEmpty ? 'None' : profile.chronicConditions.join(', '),
-                  showChevron: false,
+                  onTap: () => showEditHealthProfileSheet(context, ref, profile),
                 ),
               ],
             ),

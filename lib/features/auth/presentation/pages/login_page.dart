@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../config/router/role_nav_config.dart';
 import '../../../../config/router/route_paths.dart';
 import '../../../../config/theme/app_theme.dart';
+import '../../../../shared/mock/fixtures/seed_credentials.dart';
 import '../../../../shared/presentation/widgets/app_text_field.dart';
 import '../../../../shared/presentation/widgets/primary_button.dart';
 import '../../../patient/presentation/providers/patient_providers.dart';
@@ -38,7 +39,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   Future<void> _quickSignIn(String email) async {
     _emailController.text = email;
-    await ref.read(authControllerProvider.notifier).login(email: email, password: 'demo');
+    await ref.read(authControllerProvider.notifier).login(email: email, password: kDemoAccountPassword);
     _handlePostAuth();
   }
 
@@ -46,6 +47,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final state = ref.read(authControllerProvider);
     if (state is! AuthAuthenticated || !mounted) return;
     final user = state.user;
+    if (user.mustChangePassword) {
+      context.go(RoutePaths.forcePasswordChange);
+      return;
+    }
     if (user.role.name == 'patient' && !ref.read(onboardingCompleteProvider(user.id))) {
       context.go(RoutePaths.onboardingWellnessGoals);
       return;

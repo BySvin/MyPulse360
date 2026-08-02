@@ -6,6 +6,10 @@ class LoginUseCase {
 
   final AuthRepository _repository;
 
-  Future<AppUser> call({required String email, required String password}) =>
-      _repository.login(email: email, password: password);
+  Future<AppUser> call({
+    required String email,
+    required String password,
+    required bool isWebPlatform,
+  }) =>
+      _repository.login(email: email, password: password, isWebPlatform: isWebPlatform);
 }

@@ -61,7 +61,7 @@ class _QueueNumberPageState extends ConsumerState<QueueNumberPage> {
 
     if (todaysMatches.isEmpty) {
       return Scaffold(
-        appBar: const LargeTitleAppBar(title: 'Queue Status'),
+        appBar: const LargeTitleAppBar(title: 'Queue Status', showBack: false),
         body: const Padding(
           padding: EdgeInsets.only(top: 60),
           child: EmptyStateView(

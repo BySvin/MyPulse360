@@ -12,8 +12,10 @@ import '../../features/pharmacist/domain/entities/inventory_item.dart';
 import '../../features/pharmacist/domain/entities/pharmacist_profile.dart';
 import '../../features/prescriptions/domain/entities/prescription.dart';
 import '../domain/entities/clinic.dart';
+import 'credentials_store.dart';
 import 'fixtures/seed_appointments.dart';
 import 'fixtures/seed_chat.dart';
+import 'fixtures/seed_credentials.dart';
 import 'fixtures/seed_doctors.dart';
 import 'fixtures/seed_health_metrics.dart';
 import 'fixtures/seed_inventory.dart';
@@ -48,10 +50,14 @@ class MockDatabase {
         wellnessGoals = seedWellnessGoals(),
         inventory = seedInventory(),
         chatConversations = [seedChat()],
-        consultations = [];
+        consultations = [],
+        credentials = CredentialsStore() {
+    seedDemoCredentials(credentials, users);
+  }
 
   final List<Clinic> clinics;
   final List<AppUser> users;
+  final CredentialsStore credentials;
   final List<PatientProfile> patients;
   final List<DoctorProfile> doctors;
   final List<PharmacistProfile> pharmacists;

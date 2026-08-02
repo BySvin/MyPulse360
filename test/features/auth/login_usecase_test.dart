@@ -25,22 +25,38 @@ void main() {
   );
 
   test('returns the user when the repository resolves', () async {
-    when(() => repository.login(email: 'sarah@example.com', password: 'anything'))
-        .thenAnswer((_) async => user);
+    when(
+      () => repository.login(email: 'sarah@example.com', password: 'anything', isWebPlatform: true),
+    ).thenAnswer((_) async => user);
 
-    final result = await useCase(email: 'sarah@example.com', password: 'anything');
+    final result = await useCase(email: 'sarah@example.com', password: 'anything', isWebPlatform: true);
 
     expect(result, user);
-    verify(() => repository.login(email: 'sarah@example.com', password: 'anything')).called(1);
+    verify(
+      () => repository.login(email: 'sarah@example.com', password: 'anything', isWebPlatform: true),
+    ).called(1);
   });
 
   test('propagates the repository failure', () async {
-    when(() => repository.login(email: 'nobody@example.com', password: 'x'))
-        .thenThrow(Exception('No account found'));
+    when(
+      () => repository.login(email: 'nobody@example.com', password: 'x', isWebPlatform: true),
+    ).thenThrow(Exception('No account found'));
 
     expect(
-      () => useCase(email: 'nobody@example.com', password: 'x'),
+      () => useCase(email: 'nobody@example.com', password: 'x', isWebPlatform: true),
       throwsA(isA<Exception>()),
     );
+  });
+
+  test('forwards isWebPlatform through to the repository', () async {
+    when(
+      () => repository.login(email: 'sarah@example.com', password: 'anything', isWebPlatform: false),
+    ).thenAnswer((_) async => user);
+
+    await useCase(email: 'sarah@example.com', password: 'anything', isWebPlatform: false);
+
+    verify(
+      () => repository.login(email: 'sarah@example.com', password: 'anything', isWebPlatform: false),
+    ).called(1);
   });
 }

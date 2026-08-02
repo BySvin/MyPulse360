@@ -92,9 +92,7 @@ class _PatientHistoryPageState extends ConsumerState<PatientHistoryPage> {
       }
     }
 
-    final age = profile == null
-        ? null
-        : DateTime.now().difference(profile.dateOfBirth).inDays ~/ 365;
+    final age = profile?.age;
 
     return Scaffold(
       appBar: LargeTitleAppBar(title: patient?.fullName ?? 'Patient History'),
@@ -115,8 +113,8 @@ class _PatientHistoryPageState extends ConsumerState<PatientHistoryPage> {
                       Text(
                         [
                           if (age != null) '$age yrs',
-                          if (profile != null) profile.gender,
-                          if (profile != null) 'Type ${profile.bloodType}',
+                          if (profile?.gender != null) profile!.gender!,
+                          if (profile?.bloodType != null) 'Type ${profile!.bloodType}',
                         ].join(' · '),
                         style: TextStyle(fontSize: 12, color: colors.textSecondary),
                       ),

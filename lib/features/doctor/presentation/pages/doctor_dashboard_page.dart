@@ -240,7 +240,8 @@ class _DoctorQueueRow extends ConsumerWidget {
     final PatientProfile? profile = ref.watch(patientProfileProvider(appointment.patientId));
     final name = patient?.fullName ?? 'Patient';
     final status = QueueStatus.forAppointment(appointment);
-    final age = profile == null ? null : DateTime.now().difference(profile.dateOfBirth).inDays ~/ 365;
+    final age = profile?.age;
+    final genderInitial = (profile?.gender?.isNotEmpty ?? false) ? profile!.gender![0].toUpperCase() : '';
     final hasAllergies = profile != null && profile.allergies.isNotEmpty;
 
     return Container(
@@ -262,7 +263,7 @@ class _DoctorQueueRow extends ConsumerWidget {
                 const SizedBox(height: 3),
                 Text(
                   [
-                    if (age != null) '$age${profile!.gender.isNotEmpty ? profile.gender[0].toUpperCase() : ''}',
+                    if (age != null) '$age$genderInitial',
                     appointment.appointmentType,
                   ].join(' · '),
                   style: TextStyle(fontSize: 11.5, color: colors.textSecondary),

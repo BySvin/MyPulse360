@@ -32,6 +32,10 @@ class _SplashPageState extends ConsumerState<SplashPage> {
       return;
     }
     final user = authState.user;
+    if (user.mustChangePassword) {
+      context.go(RoutePaths.forcePasswordChange);
+      return;
+    }
     if (user.role.name == 'patient' && !ref.read(onboardingCompleteProvider(user.id))) {
       context.go(RoutePaths.onboardingWellnessGoals);
       return;

@@ -3,12 +3,15 @@ abstract final class RoutePaths {
   static const String login = '/login';
   static const String signUp = '/sign-up';
   static const String onboardingWellnessGoals = '/onboarding/wellness-goals';
+  static const String onboardingHealthProfile = '/onboarding/health-profile';
+  static const String forcePasswordChange = '/force-password-change';
 
   // Patient branch roots
   static const String patientDashboard = '/patient/dashboard';
   static const String patientAppointments = '/patient/appointments';
-  static const String patientPrescriptions = '/patient/prescriptions';
+  static const String patientQueue = '/patient/queue';
   static const String patientAssistant = '/patient/assistant';
+  static const String patientPrescriptions = '/patient/prescriptions';
   static const String patientProfile = '/patient/profile';
 
   // Patient — full-screen pushes (outside the tab shell)
@@ -16,10 +19,10 @@ abstract final class RoutePaths {
   static const String patientBookAppointment = '/patient/book-appointment';
   static const String patientHealthOverview = '/patient/health-overview';
   static const String patientAppointmentDetail = '/patient/appointments/:appointmentId';
-  static const String patientQueueNumber = '/patient/queue-number';
 
   // Doctor branch roots
   static const String doctorDashboard = '/doctor/dashboard';
+  static const String doctorStaffManagement = '/doctor/staff';
   static const String doctorPatientHistory = '/doctor/patient-history/:patientId';
 
   // Pharmacist branch roots

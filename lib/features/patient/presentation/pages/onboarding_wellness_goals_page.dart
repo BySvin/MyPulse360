@@ -2,16 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../config/router/role_nav_config.dart';
+import '../../../../config/router/route_paths.dart';
 import '../../../../config/theme/app_theme.dart';
 import '../../../../shared/presentation/widgets/primary_button.dart';
-import '../../../auth/domain/entities/user_role.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../domain/entities/wellness_goal.dart';
 import '../providers/patient_providers.dart';
 import '../widgets/goal_picker_card.dart';
 
-/// P3 — Onboarding step 4 of 4: Wellness Goals.
+/// P3 — Onboarding step 4 of 5: Wellness Goals. Followed by Health Profile
+/// Setup (step 5) before landing on the dashboard.
 class OnboardingWellnessGoalsPage extends ConsumerStatefulWidget {
   const OnboardingWellnessGoalsPage({super.key});
 
@@ -34,7 +34,7 @@ class _OnboardingWellnessGoalsPageState extends ConsumerState<OnboardingWellness
         );
     ref.read(patientDataRevisionProvider.notifier).state++;
     if (!mounted) return;
-    context.go(kRoleNavConfig[UserRole.patient]!.rootPath);
+    context.go(RoutePaths.onboardingHealthProfile);
   }
 
   @override
@@ -48,12 +48,12 @@ class _OnboardingWellnessGoalsPageState extends ConsumerState<OnboardingWellness
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-                children: List.generate(4, (i) {
+                children: List.generate(5, (i) {
                   final active = i < 4;
                   return Expanded(
                     child: Container(
                       height: 4,
-                      margin: EdgeInsets.only(right: i == 3 ? 0 : 6),
+                      margin: EdgeInsets.only(right: i == 4 ? 0 : 6),
                       decoration: BoxDecoration(
                         color: active ? colors.patientAccent : colors.surfaceMuted,
                         borderRadius: BorderRadius.circular(2),
@@ -63,7 +63,7 @@ class _OnboardingWellnessGoalsPageState extends ConsumerState<OnboardingWellness
                 }),
               ),
               const SizedBox(height: 6),
-              Text('Step 4 of 4', style: TextStyle(fontSize: 12, color: colors.textSecondary)),
+              Text('Step 4 of 5', style: TextStyle(fontSize: 12, color: colors.textSecondary)),
               const SizedBox(height: 16),
               Text('Set your wellness goals', style: Theme.of(context).textTheme.headlineMedium),
               const SizedBox(height: 6),

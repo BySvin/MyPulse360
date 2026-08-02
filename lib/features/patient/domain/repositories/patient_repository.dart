@@ -19,6 +19,10 @@ abstract class PatientRepository {
     double? heightCm,
     double? weightKg,
     List<String>? allergies,
+    DateTime? dateOfBirth,
+    String? gender,
+    String? bloodType,
+    List<String>? chronicConditions,
   });
 
   Future<void> deleteAccount(String patientId);

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
@@ -7,8 +8,8 @@ import '../../data/datasources/auth_datasource.dart';
 import '../../data/datasources/mock_auth_datasource.dart';
 import '../../data/repositories/auth_repository_impl.dart';
 import '../../domain/entities/app_user.dart';
-import '../../domain/entities/user_role.dart';
 import '../../domain/repositories/auth_repository.dart';
+import '../../domain/usecases/change_password_usecase.dart';
 import '../../domain/usecases/login_usecase.dart';
 import '../../domain/usecases/logout_usecase.dart';
 import '../../domain/usecases/sign_up_usecase.dart';
@@ -18,6 +19,12 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
   final AuthDataSource dataSource = MockAuthDataSource(ref.watch(mockDatabaseProvider));
   return AuthRepositoryImpl(dataSource);
 });
+
+/// Whether this build should be treated as the staff web dashboard. Kept
+/// behind a provider (rather than referencing `kIsWeb` inline everywhere)
+/// so login/role gating stays testable — tests override this instead of
+/// needing to fake the platform.
+final isWebPlatformProvider = Provider<bool>((ref) => kIsWeb);
 
 final authControllerProvider = NotifierProvider<AuthController, AuthState>(AuthController.new);
 
@@ -43,6 +50,7 @@ class AuthController extends Notifier<AuthState> {
       final user = await LoginUseCase(ref.read(authRepositoryProvider)).call(
         email: email,
         password: password,
+        isWebPlatform: ref.read(isWebPlatformProvider),
       );
       await _box.put(HiveBoxes.keyCurrentUserId, user.id);
       state = AuthAuthenticated(user);
@@ -55,7 +63,6 @@ class AuthController extends Notifier<AuthState> {
     required String email,
     required String password,
     required String fullName,
-    required UserRole role,
   }) async {
     state = const AuthLoading();
     try {
@@ -63,10 +70,24 @@ class AuthController extends Notifier<AuthState> {
         email: email,
         password: password,
         fullName: fullName,
-        role: role,
       );
       await _box.put(HiveBoxes.keyCurrentUserId, user.id);
       state = AuthAuthenticated(user);
+    } catch (e) {
+      state = AuthError(e.toString());
+    }
+  }
+
+  /// Used by the forced first-login "set a new password" screen — updates
+  /// the *current* session's user so the router stops redirecting there.
+  Future<void> changePassword({required String newPassword}) async {
+    final current = state;
+    if (current is! AuthAuthenticated) return;
+    state = const AuthLoading();
+    try {
+      final repository = ref.read(authRepositoryProvider);
+      await ChangePasswordUseCase(repository).call(userId: current.user.id, newPassword: newPassword);
+      state = AuthAuthenticated(repository.getUserById(current.user.id)!);
     } catch (e) {
       state = AuthError(e.toString());
     }
