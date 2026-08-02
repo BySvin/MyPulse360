@@ -8,7 +8,7 @@ import '../../../../shared/presentation/widgets/primary_button.dart';
 import '../../domain/entities/appointment.dart';
 import '../../domain/entities/time_slot.dart';
 import '../providers/appointments_providers.dart';
-import '../widgets/appointment_calendar.dart';
+import '../widgets/month_calendar.dart';
 import '../widgets/time_slot_grid.dart';
 
 /// Reuses the same calendar + slot-grid pattern as booking, pre-scoped to
@@ -64,7 +64,8 @@ class _ReschedulePageState extends ConsumerState<ReschedulePage> {
           children: [
             Text('Select a new date', style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 8),
-            AppointmentCalendar(
+            MonthCalendar(
+              doctorId: widget.appointment.doctorId,
               selectedDate: _selectedDate,
               onSelected: (d) => setState(() {
                 _selectedDate = d;

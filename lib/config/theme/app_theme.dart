@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 
 import 'app_colors.dart';
@@ -155,6 +156,20 @@ extension AppThemeContext on BuildContext {
       Theme.of(this).extension<AppSemanticColors>()!;
 }
 
+/// iOS slide-and-parallax transitions with real edge-swipe-to-pop, applied
+/// on every platform this app runs on (not just iOS) — part of the "real
+/// Apple app" interaction feel requested for the whole app.
+const _iosPageTransitions = PageTransitionsTheme(
+  builders: {
+    TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+    TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+    TargetPlatform.windows: CupertinoPageTransitionsBuilder(),
+    TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+    TargetPlatform.linux: CupertinoPageTransitionsBuilder(),
+    TargetPlatform.fuchsia: CupertinoPageTransitionsBuilder(),
+  },
+);
+
 abstract final class AppTheme {
   static ThemeData light() {
     const semantic = AppSemanticColors.light;
@@ -184,6 +199,7 @@ abstract final class AppTheme {
         ),
       ),
       dividerTheme: DividerThemeData(color: semantic.border, thickness: 1),
+      pageTransitionsTheme: _iosPageTransitions,
       appBarTheme: AppBarTheme(
         backgroundColor: AppColors.scaffoldLight,
         foregroundColor: semantic.textPrimary,
@@ -222,6 +238,7 @@ abstract final class AppTheme {
         ),
       ),
       dividerTheme: DividerThemeData(color: semantic.border, thickness: 1),
+      pageTransitionsTheme: _iosPageTransitions,
       appBarTheme: AppBarTheme(
         backgroundColor: AppColors.scaffoldDark,
         foregroundColor: semantic.textPrimary,

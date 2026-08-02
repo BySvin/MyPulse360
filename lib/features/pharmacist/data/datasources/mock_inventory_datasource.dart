@@ -1,4 +1,5 @@
 import '../../../../shared/mock/mock_database.dart';
+import '../../../../shared/utils/id_generator.dart';
 import '../../../../shared/utils/mock_latency.dart';
 import '../../domain/entities/inventory_item.dart';
 import 'inventory_datasource.dart';
@@ -27,5 +28,32 @@ class MockInventoryDataSource implements InventoryDataSource {
     final updated = _db.inventory[i].copyWith(currentStock: newStock);
     _db.inventory[i] = updated;
     return updated;
+  }
+
+  @override
+  Future<InventoryItem> addItem({
+    required String pharmacyId,
+    required String medicationName,
+    required String strength,
+    required String form,
+    required int currentStock,
+    required int reorderLevel,
+    required double unitCost,
+    required DateTime expiryDate,
+  }) async {
+    await simulateLatency();
+    final item = InventoryItem(
+      id: generateId(),
+      pharmacyId: pharmacyId,
+      medicationName: medicationName,
+      strength: strength,
+      form: form,
+      currentStock: currentStock,
+      reorderLevel: reorderLevel,
+      unitCost: unitCost,
+      expiryDate: expiryDate,
+    );
+    _db.inventory.add(item);
+    return item;
   }
 }

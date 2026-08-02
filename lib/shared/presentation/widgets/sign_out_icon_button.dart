@@ -4,20 +4,17 @@ import 'package:go_router/go_router.dart';
 
 import '../../../config/router/route_paths.dart';
 import '../../../features/auth/presentation/providers/auth_providers.dart';
+import 'confirm_dialog.dart';
 
 Future<void> confirmLogout(BuildContext context, WidgetRef ref) async {
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Sign out?'),
-      content: const Text("You'll need to sign in again to access your account."),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-        TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Sign Out')),
-      ],
-    ),
+  final confirmed = await showConfirmDialog(
+    context,
+    title: 'Sign out?',
+    message: "You'll need to sign in again to access your account.",
+    confirmLabel: 'Sign Out',
+    isDestructive: true,
   );
-  if (confirmed == true && context.mounted) {
+  if (confirmed && context.mounted) {
     await ref.read(authControllerProvider.notifier).logout();
     if (context.mounted) context.go(RoutePaths.login);
   }

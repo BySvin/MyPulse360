@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../config/theme/app_colors.dart';
@@ -116,15 +117,30 @@ class _QueueNumberPageState extends ConsumerState<QueueNumberPage> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  '#${position < 0 ? '—' : position + 1}',
-                  style: const TextStyle(
-                    fontSize: 60,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -1.5,
-                    color: Colors.white,
-                  ),
-                ),
+                position < 0
+                    ? const Text(
+                        '#—',
+                        style: TextStyle(
+                          fontSize: 60,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -1.5,
+                          color: Colors.white,
+                        ),
+                      )
+                    : TweenAnimationBuilder<int>(
+                        tween: IntTween(begin: 0, end: position + 1),
+                        duration: const Duration(milliseconds: 700),
+                        curve: Curves.easeOutCubic,
+                        builder: (context, value, _) => Text(
+                          '#$value',
+                          style: const TextStyle(
+                            fontSize: 60,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -1.5,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
                 const SizedBox(height: 6),
                 Text(
                   'with Dr. ${doctor?.fullName.split(' ').last ?? ''}'.trim(),
@@ -133,11 +149,16 @@ class _QueueNumberPageState extends ConsumerState<QueueNumberPage> {
                 const SizedBox(height: 20),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(99),
-                  child: LinearProgressIndicator(
-                    value: progress,
-                    minHeight: 10,
-                    backgroundColor: Colors.white.withValues(alpha: 0.14),
-                    valueColor: AlwaysStoppedAnimation(isDone ? colors.success : colors.patientAccent),
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0, end: progress),
+                    duration: const Duration(milliseconds: 800),
+                    curve: Curves.easeOutCubic,
+                    builder: (context, value, _) => LinearProgressIndicator(
+                      value: value,
+                      minHeight: 10,
+                      backgroundColor: Colors.white.withValues(alpha: 0.14),
+                      valueColor: AlwaysStoppedAnimation(isDone ? colors.success : colors.patientAccent),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -147,7 +168,7 @@ class _QueueNumberPageState extends ConsumerState<QueueNumberPage> {
                 ),
               ],
             ),
-          ),
+          ).animate().fadeIn(duration: 320.ms).scale(begin: const Offset(0.94, 0.94), curve: Curves.easeOutBack),
           if (!isDone) ...[
             const SizedBox(height: 14),
             Container(
@@ -190,7 +211,7 @@ class _QueueNumberPageState extends ConsumerState<QueueNumberPage> {
               position: i + 1,
               isMe: queue[i].id == appointment.id,
               doctorAccent: colors.clinicianAccent,
-            ),
+            ).animate().fadeIn(delay: (i * 50).ms, duration: 220.ms).slideX(begin: 0.06, end: 0, curve: Curves.easeOut),
             if (i != queue.length - 1) const SizedBox(height: 8),
           ],
         ],

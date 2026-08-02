@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../config/theme/app_colors.dart';
@@ -142,7 +143,7 @@ class AppShellScaffold extends StatelessWidget {
             ),
           ),
         ),
-      ),
+      ).animate().fadeIn(duration: 320.ms).slideY(begin: 0.4, end: 0, curve: Curves.easeOutCubic),
     );
   }
 }
@@ -182,17 +183,25 @@ class _NavTab extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(displayIcon, size: 20, color: color),
+          AnimatedScale(
+            scale: selected ? 1.14 : 1.0,
+            duration: const Duration(milliseconds: 280),
+            curve: Curves.easeOutBack,
+            child: TweenAnimationBuilder<Color?>(
+              tween: ColorTween(end: color),
+              duration: const Duration(milliseconds: 220),
+              builder: (context, animatedColor, _) => Icon(displayIcon, size: 20, color: animatedColor),
+            ),
+          ),
           const SizedBox(height: 3),
-          Text(
-            displayLabel,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+          AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 220),
             style: TextStyle(
               fontSize: 9.5,
               fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
               color: color,
             ),
+            child: Text(displayLabel, maxLines: 1, overflow: TextOverflow.ellipsis),
           ),
         ],
       ),

@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoSwitch;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -133,7 +134,7 @@ class _AppleHealthCard extends StatelessWidget {
               ],
             ),
           ),
-          Switch(value: connected, onChanged: onChanged, activeTrackColor: colors.patientAccent),
+          CupertinoSwitch(value: connected, onChanged: onChanged, activeTrackColor: colors.patientAccent),
         ],
       ),
     );

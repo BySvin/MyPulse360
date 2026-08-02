@@ -1,5 +1,7 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
+import '../../../../config/theme/app_theme.dart';
 import '../../../../shared/presentation/widgets/grouped_list.dart';
 import '../../../../shared/presentation/widgets/grouped_list_tile.dart';
 
@@ -19,18 +21,27 @@ class ProfileSettingsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = context.colors.patientAccent;
     return GroupedList(
       header: 'Preferences',
       children: [
         GroupedListTile(
           title: 'Dark Mode',
           leadingIcon: Icons.dark_mode_outlined,
-          trailing: Switch(value: darkMode, onChanged: onDarkModeChanged),
+          trailing: CupertinoSwitch(
+            value: darkMode,
+            onChanged: onDarkModeChanged,
+            activeTrackColor: accent,
+          ),
         ),
         GroupedListTile(
           title: 'Notifications',
           leadingIcon: Icons.notifications_outlined,
-          trailing: Switch(value: notificationsEnabled, onChanged: onNotificationsChanged),
+          trailing: CupertinoSwitch(
+            value: notificationsEnabled,
+            onChanged: onNotificationsChanged,
+            activeTrackColor: accent,
+          ),
         ),
       ],
     );

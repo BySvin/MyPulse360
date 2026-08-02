@@ -40,10 +40,12 @@ dependencies:
   hive_flutter: ^1.1.0
   fl_chart: ^1.2.0
   google_fonts: ^8.2.0
-  intl: ^0.20.3
+  intl: ^0.20.2
   uuid: ^4.6.0
   equatable: ^2.1.0
   path_provider: ^2.1.6
+  shadcn_ui: ^0.56.0
+  flutter_animate: ^4.5.2
 
 dev_dependencies:
   flutter_test:

@@ -6,6 +6,7 @@ import '../../../../config/router/route_paths.dart';
 import '../../../../config/theme/app_theme.dart';
 import '../../../../config/theme/theme_mode_provider.dart';
 import '../../../../shared/presentation/widgets/avatar_widget.dart';
+import '../../../../shared/presentation/widgets/confirm_dialog.dart';
 import '../../../../shared/presentation/widgets/grouped_list.dart';
 import '../../../../shared/presentation/widgets/grouped_list_tile.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
@@ -27,39 +28,28 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   bool _notificationsEnabled = true;
 
   Future<void> _confirmLogout() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Sign out?'),
-        content: const Text("You'll need to sign in again to access your account."),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Sign Out')),
-        ],
-      ),
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Sign out?',
+      message: "You'll need to sign in again to access your account.",
+      confirmLabel: 'Sign Out',
+      isDestructive: true,
     );
-    if (confirmed == true && mounted) {
+    if (confirmed && mounted) {
       await ref.read(authControllerProvider.notifier).logout();
       if (mounted) context.go(RoutePaths.login);
     }
   }
 
   Future<void> _confirmDelete(String patientId) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete account?'),
-        content: const Text('This permanently removes your profile and health data. This cannot be undone.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text('Delete', style: TextStyle(color: context.colors.danger)),
-          ),
-        ],
-      ),
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Delete account?',
+      message: 'This permanently removes your profile and health data. This cannot be undone.',
+      confirmLabel: 'Delete',
+      isDestructive: true,
     );
-    if (confirmed == true && mounted) {
+    if (confirmed && mounted) {
       await ref.read(patientRepositoryProvider).deleteAccount(patientId);
       await ref.read(authControllerProvider.notifier).logout();
       if (mounted) context.go(RoutePaths.login);
