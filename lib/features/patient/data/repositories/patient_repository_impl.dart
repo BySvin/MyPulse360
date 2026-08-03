@@ -15,16 +15,18 @@ class PatientRepositoryImpl implements PatientRepository {
   List<WellnessGoal> getWellnessGoals(String patientId) => _dataSource.getWellnessGoals(patientId);
 
   @override
-  Future<PatientProfile> completeOnboarding({
+  Future<PatientProfile> createInitialProfile({
     required String patientId,
     required String assignedDoctorId,
+  }) =>
+      _dataSource.createInitialProfile(patientId: patientId, assignedDoctorId: assignedDoctorId);
+
+  @override
+  Future<void> seedStarterGoals({
+    required String patientId,
     required List<WellnessGoalType> selectedGoals,
   }) =>
-      _dataSource.completeOnboarding(
-        patientId: patientId,
-        assignedDoctorId: assignedDoctorId,
-        selectedGoals: selectedGoals,
-      );
+      _dataSource.seedStarterGoals(patientId: patientId, selectedGoals: selectedGoals);
 
   @override
   Future<PatientProfile> updateProfile(
@@ -36,6 +38,14 @@ class PatientRepositoryImpl implements PatientRepository {
     String? gender,
     String? bloodType,
     List<String>? chronicConditions,
+    String? insuranceProvider,
+    String? emergencyContactName,
+    String? emergencyContactPhone,
+    String? preferredClinicId,
+    String? preferredLanguage,
+    bool? notifyAppointments,
+    bool? notifyPrescriptions,
+    bool? notifyHealthTips,
   }) =>
       _dataSource.updateProfile(
         patientId,
@@ -46,6 +56,14 @@ class PatientRepositoryImpl implements PatientRepository {
         gender: gender,
         bloodType: bloodType,
         chronicConditions: chronicConditions,
+        insuranceProvider: insuranceProvider,
+        emergencyContactName: emergencyContactName,
+        emergencyContactPhone: emergencyContactPhone,
+        preferredClinicId: preferredClinicId,
+        preferredLanguage: preferredLanguage,
+        notifyAppointments: notifyAppointments,
+        notifyPrescriptions: notifyPrescriptions,
+        notifyHealthTips: notifyHealthTips,
       );
 
   @override

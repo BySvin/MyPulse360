@@ -12,6 +12,7 @@ import '../../../auth/domain/entities/user_role.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
 import '../providers/patient_providers.dart';
 import '../widgets/health_profile_fields.dart';
+import '../widgets/onboarding_progress_bar.dart';
 
 /// Onboarding step 5 of 5 — collects the data used to personalize the
 /// dashboard (BMI, wellness insights). Height/weight are required; every
@@ -93,22 +94,7 @@ class _HealthProfileSetupPageState extends ConsumerState<HealthProfileSetupPage>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: List.generate(5, (i) {
-                  return Expanded(
-                    child: Container(
-                      height: 4,
-                      margin: EdgeInsets.only(right: i == 4 ? 0 : 6),
-                      decoration: BoxDecoration(
-                        color: colors.patientAccent,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  );
-                }),
-              ),
-              const SizedBox(height: 6),
-              Text('Step 5 of 5', style: TextStyle(fontSize: 12, color: colors.textSecondary)),
+              const OnboardingProgressBar(step: 5),
               const SizedBox(height: 16),
               Text('Set up your health profile', style: Theme.of(context).textTheme.headlineMedium),
               const SizedBox(height: 6),

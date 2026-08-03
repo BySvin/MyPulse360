@@ -23,16 +23,15 @@ class MockPatientDataSource implements PatientDataSource {
       _db.wellnessGoals.where((g) => g.patientId == patientId).toList();
 
   @override
-  Future<PatientProfile> completeOnboarding({
+  Future<PatientProfile> createInitialProfile({
     required String patientId,
     required String assignedDoctorId,
-    required List<WellnessGoalType> selectedGoals,
   }) async {
     await simulateLatency();
     // Height/weight need a real (non-null) starting value since the entity
-    // requires them; the Health Profile Setup step immediately overwrites
-    // these. DOB/gender/blood type stay genuinely null until the patient
-    // chooses to provide them.
+    // requires them; Health Profile Setup (the last onboarding step)
+    // immediately overwrites these. Everything else stays genuinely empty
+    // until the patient fills it in across the onboarding steps.
     final profile = PatientProfile(
       id: patientId,
       heightCm: 170,
@@ -43,7 +42,15 @@ class MockPatientDataSource implements PatientDataSource {
       assignedDoctorId: assignedDoctorId,
     );
     _db.patients.add(profile);
+    return profile;
+  }
 
+  @override
+  Future<void> seedStarterGoals({
+    required String patientId,
+    required List<WellnessGoalType> selectedGoals,
+  }) async {
+    await simulateLatency();
     final now = DateTime.now();
     final endOfWeek = now.add(Duration(days: 7 - now.weekday));
     for (final type in selectedGoals) {
@@ -68,7 +75,6 @@ class MockPatientDataSource implements PatientDataSource {
         ),
       );
     }
-    return profile;
   }
 
   @override
@@ -81,6 +87,14 @@ class MockPatientDataSource implements PatientDataSource {
     String? gender,
     String? bloodType,
     List<String>? chronicConditions,
+    String? insuranceProvider,
+    String? emergencyContactName,
+    String? emergencyContactPhone,
+    String? preferredClinicId,
+    String? preferredLanguage,
+    bool? notifyAppointments,
+    bool? notifyPrescriptions,
+    bool? notifyHealthTips,
   }) async {
     await simulateLatency();
     final i = _db.patients.indexWhere((p) => p.id == patientId);
@@ -93,6 +107,14 @@ class MockPatientDataSource implements PatientDataSource {
       gender: gender,
       bloodType: bloodType,
       chronicConditions: chronicConditions,
+      insuranceProvider: insuranceProvider,
+      emergencyContactName: emergencyContactName,
+      emergencyContactPhone: emergencyContactPhone,
+      preferredClinicId: preferredClinicId,
+      preferredLanguage: preferredLanguage,
+      notifyAppointments: notifyAppointments,
+      notifyPrescriptions: notifyPrescriptions,
+      notifyHealthTips: notifyHealthTips,
     );
     _db.patients[i] = updated;
     return updated;

@@ -9,9 +9,12 @@ import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../domain/entities/wellness_goal.dart';
 import '../providers/patient_providers.dart';
 import '../widgets/goal_picker_card.dart';
+import '../widgets/onboarding_progress_bar.dart';
 
-/// P3 — Onboarding step 4 of 5: Wellness Goals. Followed by Health Profile
-/// Setup (step 5) before landing on the dashboard.
+/// P3 — Onboarding step 4 of 5: Wellness Goals. The profile itself was
+/// already created right after signup; this step only seeds starter goals.
+/// Followed by Health Profile Setup (step 5) before landing on the
+/// dashboard.
 class OnboardingWellnessGoalsPage extends ConsumerStatefulWidget {
   const OnboardingWellnessGoalsPage({super.key});
 
@@ -27,9 +30,8 @@ class _OnboardingWellnessGoalsPageState extends ConsumerState<OnboardingWellness
     final user = ref.read(currentUserProvider);
     if (user == null) return;
     setState(() => _saving = true);
-    await ref.read(patientRepositoryProvider).completeOnboarding(
+    await ref.read(patientRepositoryProvider).seedStarterGoals(
           patientId: user.id,
-          assignedDoctorId: 'user-dr-ahmed',
           selectedGoals: _selected.toList(),
         );
     ref.read(patientDataRevisionProvider.notifier).state++;
@@ -47,23 +49,7 @@ class _OnboardingWellnessGoalsPageState extends ConsumerState<OnboardingWellness
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: List.generate(5, (i) {
-                  final active = i < 4;
-                  return Expanded(
-                    child: Container(
-                      height: 4,
-                      margin: EdgeInsets.only(right: i == 4 ? 0 : 6),
-                      decoration: BoxDecoration(
-                        color: active ? colors.patientAccent : colors.surfaceMuted,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  );
-                }),
-              ),
-              const SizedBox(height: 6),
-              Text('Step 4 of 5', style: TextStyle(fontSize: 12, color: colors.textSecondary)),
+              const OnboardingProgressBar(step: 4),
               const SizedBox(height: 16),
               Text('Set your wellness goals', style: Theme.of(context).textTheme.headlineMedium),
               const SizedBox(height: 6),

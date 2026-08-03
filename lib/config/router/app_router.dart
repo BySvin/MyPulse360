@@ -21,6 +21,9 @@ import '../../features/health_dashboard/presentation/pages/dashboard_page.dart';
 import '../../features/health_dashboard/presentation/pages/health_metric_detail_page.dart';
 import '../../features/health_dashboard/presentation/pages/health_overview_page.dart';
 import '../../features/patient/presentation/pages/health_profile_setup_page.dart';
+import '../../features/patient/presentation/pages/onboarding_emergency_contact_page.dart';
+import '../../features/patient/presentation/pages/onboarding_healthcare_preferences_page.dart';
+import '../../features/patient/presentation/pages/onboarding_welcome_page.dart';
 import '../../features/patient/presentation/pages/onboarding_wellness_goals_page.dart';
 import '../../features/patient/presentation/pages/profile_page.dart';
 import '../../features/patient/presentation/providers/patient_providers.dart';
@@ -68,15 +71,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return loc == RoutePaths.forcePasswordChange ? null : RoutePaths.forcePasswordChange;
       }
 
+      // "Onboarded" just means a profile row exists, which now happens
+      // immediately after signup (before step 1) so the 5-step flow has
+      // somewhere to save data as it goes — it is not a signal that the
+      // flow is *finished*. Don't bounce mid-flow routes to the dashboard
+      // just because a profile exists; only auth routes and the forced
+      // password-change gate should ever redirect to the dashboard root.
       final onboarded =
           user.role != UserRole.patient || ref.read(onboardingCompleteProvider(user.id));
       if (!onboarded) {
-        return loc == RoutePaths.onboardingWellnessGoals
-            ? null
-            : RoutePaths.onboardingWellnessGoals;
+        return loc == RoutePaths.onboardingWelcome ? null : RoutePaths.onboardingWelcome;
       }
 
-      if (isAuthRoute || loc == RoutePaths.onboardingWellnessGoals || loc == RoutePaths.forcePasswordChange) {
+      if (isAuthRoute || loc == RoutePaths.forcePasswordChange) {
         return kRoleNavConfig[user.role]!.rootPath;
       }
       return null;
@@ -88,6 +95,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RoutePaths.forcePasswordChange,
         builder: (_, _) => const ForcePasswordChangePage(),
+      ),
+      GoRoute(
+        path: RoutePaths.onboardingWelcome,
+        builder: (_, _) => const OnboardingWelcomePage(),
+      ),
+      GoRoute(
+        path: RoutePaths.onboardingEmergencyContact,
+        builder: (_, _) => const OnboardingEmergencyContactPage(),
+      ),
+      GoRoute(
+        path: RoutePaths.onboardingHealthcarePreferences,
+        builder: (_, _) => const OnboardingHealthcarePreferencesPage(),
       ),
       GoRoute(
         path: RoutePaths.onboardingWellnessGoals,

@@ -2,6 +2,9 @@ abstract final class RoutePaths {
   static const String splash = '/splash';
   static const String login = '/login';
   static const String signUp = '/sign-up';
+  static const String onboardingWelcome = '/onboarding/welcome';
+  static const String onboardingEmergencyContact = '/onboarding/emergency-contact';
+  static const String onboardingHealthcarePreferences = '/onboarding/healthcare-preferences';
   static const String onboardingWellnessGoals = '/onboarding/wellness-goals';
   static const String onboardingHealthProfile = '/onboarding/health-profile';
   static const String forcePasswordChange = '/force-password-change';

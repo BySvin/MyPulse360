@@ -6,9 +6,13 @@ abstract class PatientDataSource {
 
   List<WellnessGoal> getWellnessGoals(String patientId);
 
-  Future<PatientProfile> completeOnboarding({
+  Future<PatientProfile> createInitialProfile({
     required String patientId,
     required String assignedDoctorId,
+  });
+
+  Future<void> seedStarterGoals({
+    required String patientId,
     required List<WellnessGoalType> selectedGoals,
   });
 
@@ -21,6 +25,14 @@ abstract class PatientDataSource {
     String? gender,
     String? bloodType,
     List<String>? chronicConditions,
+    String? insuranceProvider,
+    String? emergencyContactName,
+    String? emergencyContactPhone,
+    String? preferredClinicId,
+    String? preferredLanguage,
+    bool? notifyAppointments,
+    bool? notifyPrescriptions,
+    bool? notifyHealthTips,
   });
 
   Future<void> deleteAccount(String patientId);
