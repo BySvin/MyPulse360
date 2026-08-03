@@ -23,11 +23,11 @@ class HealthMetric extends Equatable {
   final String? recordedBy;
   final String? notes;
 
-  String get displayValue => type == MetricType.bloodPressure
-      ? '${value.toInt()}/${secondaryValue?.toInt() ?? 0}'
-      : type == MetricType.weight
-          ? value.toStringAsFixed(1)
-          : value.toInt().toString();
+  String get displayValue => switch (type) {
+        MetricType.bloodPressure => '${value.toInt()}/${secondaryValue?.toInt() ?? 0}',
+        MetricType.weight || MetricType.sleepHours => value.toStringAsFixed(1),
+        _ => value.toInt().toString(),
+      };
 
   @override
   List<Object?> get props => [id, patientId, type, value, secondaryValue, measuredAt, recordedBy, notes];

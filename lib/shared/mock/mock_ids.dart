@@ -3,6 +3,7 @@
 /// metrics all point at the same patient id).
 abstract final class MockIds {
   static const String defaultClinicId = 'clinic-001';
+  static const String secondClinicId = 'clinic-002';
 
   static const String sarahUserId = 'user-sarah';
   static const String sarahPatientId = sarahUserId;

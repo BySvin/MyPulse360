@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../config/theme/app_theme.dart';
+import '../../../../shared/mock/mock_ids.dart';
 import '../../../../shared/presentation/widgets/app_card.dart';
 import '../../../../shared/presentation/widgets/avatar_widget.dart';
 import '../../../../shared/presentation/widgets/large_title_app_bar.dart';
@@ -9,6 +10,7 @@ import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../../prescriptions/domain/entities/prescription.dart';
 import '../../../prescriptions/presentation/providers/prescriptions_providers.dart';
 import '../../../prescriptions/presentation/widgets/prescription_item_row.dart';
+import '../providers/inventory_providers.dart';
 import '../providers/pharmacist_providers.dart';
 import '../widgets/dispense_action_bar.dart';
 import '../widgets/verification_checklist.dart';
@@ -28,11 +30,25 @@ class _PrescriptionVerificationPageState extends ConsumerState<PrescriptionVerif
   final Set<int> _checked = {};
   bool _dispensing = false;
 
-  Future<void> _dispense(String prescriptionId) async {
+  Future<void> _dispense(Prescription prescription) async {
     setState(() => _dispensing = true);
+    final user = ref.read(currentUserProvider);
+    final locationId = user == null
+        ? MockIds.defaultClinicId
+        : ref.read(pharmacistProfileProvider(user.id))?.clinicId ?? MockIds.defaultClinicId;
+    final inventoryRepository = ref.read(inventoryRepositoryProvider);
+    for (final item in prescription.items) {
+      await inventoryRepository.deductForDispense(
+        locationId: locationId,
+        medicationName: item.medicationName,
+        strength: item.strength,
+        quantity: item.quantity,
+      );
+    }
+    ref.read(inventoryRevisionProvider.notifier).state++;
     await ref
         .read(prescriptionsRepositoryProvider)
-        .updateStatus(prescriptionId, PrescriptionStatus.dispensed);
+        .updateStatus(prescription.id, PrescriptionStatus.dispensed);
     ref.read(prescriptionsRevisionProvider.notifier).state++;
     if (!mounted) return;
     setState(() => _dispensing = false);
@@ -103,7 +119,7 @@ class _PrescriptionVerificationPageState extends ConsumerState<PrescriptionVerif
       ),
       bottomNavigationBar: DispenseActionBar(
         enabled: allChecked,
-        onDispense: () => _dispense(prescription.id),
+        onDispense: () => _dispense(prescription),
         loading: _dispensing,
       ),
     );

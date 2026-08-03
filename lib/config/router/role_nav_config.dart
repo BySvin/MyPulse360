@@ -46,6 +46,11 @@ const Map<UserRole, RoleNavConfig> kRoleNavConfig = {
         label: 'Dashboard',
       ),
       NavItem(icon: Icons.badge_outlined, selectedIcon: Icons.badge_rounded, label: 'Staff'),
+      NavItem(
+        icon: Icons.calendar_today_outlined,
+        selectedIcon: Icons.calendar_today_rounded,
+        label: 'Schedule',
+      ),
     ],
   ),
   UserRole.pharmacist: RoleNavConfig(
@@ -61,6 +66,11 @@ const Map<UserRole, RoleNavConfig> kRoleNavConfig = {
         icon: Icons.inventory_2_outlined,
         selectedIcon: Icons.inventory_2_rounded,
         label: 'Inventory',
+      ),
+      NavItem(
+        icon: Icons.calendar_today_outlined,
+        selectedIcon: Icons.calendar_today_rounded,
+        label: 'Schedule',
       ),
     ],
   ),

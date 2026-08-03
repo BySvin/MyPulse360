@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../config/theme/app_theme.dart';
 import '../../../../shared/presentation/widgets/app_card.dart';
+import '../../../../shared/utils/date_formatters.dart';
 import '../../domain/entities/inventory_item.dart';
-import 'add_stock_sheet.dart';
+import '../pages/inventory_item_detail_page.dart';
+import '../providers/inventory_providers.dart';
 import 'stock_level_badge.dart';
 
 class InventoryRow extends ConsumerWidget {
@@ -15,7 +17,12 @@ class InventoryRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
+    final stock = ref.watch(itemStockProvider(item));
+
     return AppCard(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => InventoryItemDetailPage(itemId: item.id)),
+      ),
       child: Row(
         children: [
           Container(
@@ -35,21 +42,26 @@ class InventoryRow extends ConsumerWidget {
                 Text('${item.medicationName} ${item.strength}', style: Theme.of(context).textTheme.titleSmall),
                 const SizedBox(height: 3),
                 Text(
-                  '${item.currentStock} in stock · reorder at ${item.reorderLevel}',
+                  stock.nearestExpiry == null
+                      ? '${stock.totalQuantity} in stock · reorder at ${item.reorderLevel}'
+                      : '${stock.totalQuantity} in stock · expires ${DateFormatters.short(stock.nearestExpiry!)}',
                   style: TextStyle(fontSize: 12, color: colors.textSecondary),
                 ),
               ],
             ),
           ),
-          StockLevelBadge(item: item),
-          const SizedBox(width: 4),
-          IconButton(
-            onPressed: () => showAddStockSheet(context, ref, item),
-            icon: Icon(Icons.add_circle_rounded, color: colors.patientAccent, size: 22),
-            tooltip: 'Add stock',
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              StockLevelBadge(stock: stock),
+              if (stock.isExpiringSoon) ...[
+                const SizedBox(height: 4),
+                Text('Expiring soon', style: TextStyle(fontSize: 10, color: colors.danger)),
+              ],
+            ],
           ),
+          const SizedBox(width: 4),
+          Icon(Icons.chevron_right_rounded, color: colors.textTertiary, size: 20),
         ],
       ),
     );

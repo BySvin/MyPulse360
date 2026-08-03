@@ -1,50 +1,170 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../config/theme/app_radii.dart';
 import '../../../../config/theme/app_theme.dart';
+import '../../../../shared/mock/mock_database.dart';
 import '../../../../shared/presentation/widgets/empty_state_view.dart';
-import '../../../auth/presentation/providers/auth_providers.dart';
 import '../providers/inventory_providers.dart';
 import '../widgets/add_medicine_sheet.dart';
+import '../widgets/barcode_scanner_sheet.dart';
 import '../widgets/inventory_row.dart';
+import 'inventory_analytics_page.dart';
+import 'inventory_item_detail_page.dart';
+import 'suppliers_page.dart';
 
-/// F3 — Inventory: drawn at tablet width (768pt), since Fatima works from
-/// an Android tablet at the counter (§9.1 two-column rules apply).
-class InventoryPage extends ConsumerWidget {
+/// F3 — Inventory: location switcher, low-stock/expiring/value summary,
+/// then the medication list. Each row now shows stock computed across that
+/// medication's batches rather than a single flat count.
+class InventoryPage extends ConsumerStatefulWidget {
   const InventoryPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.colors;
-    final user = ref.watch(currentUserProvider);
-    if (user == null) return const SizedBox.shrink();
+  ConsumerState<InventoryPage> createState() => _InventoryPageState();
+}
 
-    final items = ref.watch(inventoryProvider(user.id));
-    final lowStock = items.where((i) => i.isLowStock).length;
+class _InventoryPageState extends ConsumerState<InventoryPage> {
+  final _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _scanToFind(BuildContext context, WidgetRef ref, String locationId) async {
+    final code = await showBarcodeScanner(context);
+    if (code == null || !context.mounted) return;
+    final match = ref.read(inventoryRepositoryProvider).getItemByBarcode(locationId, code);
+    if (match != null) {
+      if (!context.mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => InventoryItemDetailPage(itemId: match.id)),
+      );
+    } else {
+      if (!context.mounted) return;
+      showAddMedicineSheet(context, ref, locationId, prefillBarcode: code);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final clinics = ref.watch(mockDatabaseProvider).clinics;
+    final selectedLocation = ref.watch(selectedLocationProvider);
+    final items = ref.watch(inventoryProvider(selectedLocation));
+    final summary = ref.watch(locationSummaryProvider(selectedLocation));
+
+    final query = _searchController.text.trim().toLowerCase();
+    final shown = query.isEmpty
+        ? items
+        : items.where((i) => i.medicationName.toLowerCase().contains(query)).toList();
 
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('Inventory'),
+        centerTitle: false,
+        actions: [
+          IconButton(
+            onPressed: () => _scanToFind(context, ref, selectedLocation),
+            icon: const Icon(Icons.qr_code_scanner_rounded),
+            tooltip: 'Scan barcode',
+          ),
+          IconButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const SuppliersPage()),
+            ),
+            icon: const Icon(Icons.local_shipping_outlined),
+            tooltip: 'Suppliers',
+          ),
+          IconButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => InventoryAnalyticsPage(locationId: selectedLocation)),
+            ),
+            icon: const Icon(Icons.bar_chart_rounded),
+            tooltip: 'Analytics',
+          ),
+        ],
+      ),
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
             final isWide = constraints.maxWidth >= 600;
             return ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
               children: [
-                Text('Inventory', style: Theme.of(context).textTheme.headlineMedium),
-                const SizedBox(height: 4),
-                Text(
-                  lowStock == 0 ? 'All stock levels healthy' : '$lowStock item(s) at or below reorder level',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: lowStock == 0 ? colors.textSecondary : colors.warningText,
+                if (clinics.length > 1) ...[
+                  CupertinoSlidingSegmentedControl<String>(
+                    groupValue: selectedLocation,
+                    backgroundColor: colors.surfaceMuted,
+                    thumbColor: colors.patientAccent,
+                    children: {
+                      for (final clinic in clinics)
+                        clinic.id: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          child: Text(
+                            clinic.name,
+                            style: TextStyle(
+                              color: selectedLocation == clinic.id ? Colors.white : colors.textPrimary,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12.5,
+                            ),
+                          ),
+                        ),
+                    },
+                    onValueChanged: (value) {
+                      if (value != null) ref.read(selectedLocationProvider.notifier).state = value;
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                ],
+                Row(
+                  children: [
+                    Expanded(
+                      child: _SummaryTile(
+                        label: 'Low stock',
+                        value: '${summary.lowStockCount}',
+                        tone: summary.lowStockCount == 0 ? colors.success : colors.warningText,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _SummaryTile(
+                        label: 'Expiring soon',
+                        value: '${summary.expiringSoonCount}',
+                        tone: summary.expiringSoonCount == 0 ? colors.success : colors.danger,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _SummaryTile(
+                        label: 'Total value',
+                        value: '\$${summary.totalValue.toStringAsFixed(0)}',
+                        tone: colors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: _searchController,
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(
+                    hintText: 'Search medications',
+                    prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                    filled: true,
+                    fillColor: Theme.of(context).cardTheme.color,
+                    isDense: true,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppRadii.sm),
+                      borderSide: BorderSide(color: colors.border),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 14),
-                // Custom medicine restock — registers a brand-new medication,
-                // distinct from the per-item "+" restock on existing rows.
                 InkWell(
-                  onTap: () => showAddMedicineSheet(context, ref, user.id),
+                  onTap: () => showAddMedicineSheet(context, ref, selectedLocation),
                   borderRadius: BorderRadius.circular(AppRadii.card),
                   child: Container(
                     padding: const EdgeInsets.all(14),
@@ -59,10 +179,7 @@ class InventoryPage extends ConsumerWidget {
                           width: 38,
                           height: 38,
                           alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: colors.patientAccent,
-                            shape: BoxShape.circle,
-                          ),
+                          decoration: BoxDecoration(color: colors.patientAccent, shape: BoxShape.circle),
                           child: const Icon(Icons.add_rounded, color: Colors.white, size: 20),
                         ),
                         const SizedBox(width: 12),
@@ -88,8 +205,11 @@ class InventoryPage extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 16),
-                if (items.isEmpty)
-                  const EmptyStateView(title: 'No inventory items', icon: Icons.inventory_2_outlined)
+                if (shown.isEmpty)
+                  EmptyStateView(
+                    title: items.isEmpty ? 'No inventory items' : 'No matches',
+                    icon: Icons.inventory_2_outlined,
+                  )
                 else if (isWide)
                   GridView.count(
                     crossAxisCount: 2,
@@ -98,12 +218,12 @@ class InventoryPage extends ConsumerWidget {
                     mainAxisSpacing: 10,
                     crossAxisSpacing: 10,
                     childAspectRatio: 3.6,
-                    children: [for (final item in items) InventoryRow(item: item)],
+                    children: [for (final item in shown) InventoryRow(item: item)],
                   )
                 else
                   Column(
                     children: [
-                      for (final item in items) ...[
+                      for (final item in shown) ...[
                         InventoryRow(item: item),
                         const SizedBox(height: 10),
                       ],
@@ -113,6 +233,34 @@ class InventoryPage extends ConsumerWidget {
             );
           },
         ),
+      ),
+    );
+  }
+}
+
+class _SummaryTile extends StatelessWidget {
+  const _SummaryTile({required this.label, required this.value, required this.tone});
+
+  final String label;
+  final String value;
+  final Color tone;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardTheme.color,
+        borderRadius: BorderRadius.circular(AppRadii.card),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        children: [
+          Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: tone)),
+          const SizedBox(height: 2),
+          Text(label, textAlign: TextAlign.center, style: TextStyle(fontSize: 10.5, color: colors.textSecondary)),
+        ],
       ),
     );
   }

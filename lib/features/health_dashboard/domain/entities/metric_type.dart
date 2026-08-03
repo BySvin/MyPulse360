@@ -4,13 +4,21 @@ enum MetricType {
   weight,
   bloodPressure,
   bloodSugar,
-  heartRate;
+  heartRate,
+  steps,
+  sleepHours,
+  caloriesBurned,
+  exerciseMinutes;
 
   String get label => switch (this) {
         MetricType.weight => 'Weight',
         MetricType.bloodPressure => 'Blood Pressure',
         MetricType.bloodSugar => 'Blood Sugar',
         MetricType.heartRate => 'Heart Rate',
+        MetricType.steps => 'Steps',
+        MetricType.sleepHours => 'Sleep',
+        MetricType.caloriesBurned => 'Calories',
+        MetricType.exerciseMinutes => 'Exercise',
       };
 
   String get unit => switch (this) {
@@ -18,6 +26,10 @@ enum MetricType {
         MetricType.bloodPressure => 'mmHg',
         MetricType.bloodSugar => 'mg/dL',
         MetricType.heartRate => 'bpm',
+        MetricType.steps => 'steps',
+        MetricType.sleepHours => 'h',
+        MetricType.caloriesBurned => 'kcal',
+        MetricType.exerciseMinutes => 'min',
       };
 
   IconData get icon => switch (this) {
@@ -25,5 +37,18 @@ enum MetricType {
         MetricType.bloodPressure => Icons.favorite_border,
         MetricType.bloodSugar => Icons.water_drop_outlined,
         MetricType.heartRate => Icons.monitor_heart_outlined,
+        MetricType.steps => Icons.directions_walk_rounded,
+        MetricType.sleepHours => Icons.bedtime_outlined,
+        MetricType.caloriesBurned => Icons.local_fire_department_outlined,
+        MetricType.exerciseMinutes => Icons.fitness_center_outlined,
+      };
+
+  /// The four core clinical vitals a patient can log by hand — shown in
+  /// the "Vital Signs" grid. The rest are fitness/activity metrics that
+  /// realistically only ever come from a connected device, shown in their
+  /// own "Activity & Fitness" section instead.
+  bool get isCoreVital => switch (this) {
+        MetricType.weight || MetricType.bloodPressure || MetricType.bloodSugar || MetricType.heartRate => true,
+        _ => false,
       };
 }

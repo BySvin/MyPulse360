@@ -1,4 +1,5 @@
 import '../../domain/entities/health_metric.dart';
+import '../../domain/entities/health_platform_connection.dart';
 import '../../domain/entities/metric_type.dart';
 import '../../domain/entities/vital_summary.dart';
 import '../../domain/repositories/health_metrics_repository.dart';
@@ -19,4 +20,17 @@ class HealthMetricsRepositoryImpl implements HealthMetricsRepository {
 
   @override
   Future<HealthMetric> logMetric(HealthMetric metric) => _dataSource.logMetric(metric);
+
+  @override
+  HealthPlatformConnection? getConnection(String patientId) => _dataSource.getConnection(patientId);
+
+  @override
+  Future<HealthPlatformConnection> connectPlatform(String patientId, HealthPlatform platform) =>
+      _dataSource.connectPlatform(patientId, platform);
+
+  @override
+  Future<void> disconnectPlatform(String patientId) => _dataSource.disconnectPlatform(patientId);
+
+  @override
+  Future<void> syncNow(String patientId) => _dataSource.syncNow(patientId);
 }

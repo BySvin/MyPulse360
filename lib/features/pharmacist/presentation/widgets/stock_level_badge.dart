@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
 
 import '../../../../shared/presentation/widgets/status_badge.dart';
-import '../../domain/entities/inventory_item.dart';
+import '../providers/inventory_providers.dart';
 
 class StockLevelBadge extends StatelessWidget {
-  const StockLevelBadge({super.key, required this.item});
+  const StockLevelBadge({super.key, required this.stock});
 
-  final InventoryItem item;
+  final ItemStock stock;
 
   @override
   Widget build(BuildContext context) {
     return StatusBadge(
-      label: item.isLowStock ? 'Reorder' : 'In stock',
-      tone: item.isLowStock ? StatusTone.warning : StatusTone.success,
+      label: stock.isLowStock ? 'Reorder' : 'In stock',
+      tone: stock.isLowStock ? StatusTone.warning : StatusTone.success,
     );
   }
 }

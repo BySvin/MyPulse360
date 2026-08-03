@@ -1,45 +1,49 @@
 import 'package:equatable/equatable.dart';
 
+/// A medication catalog entry — the "what" (name, strength, form). Stock
+/// levels and expiry now live on [InventoryBatch] rows underneath it, since
+/// a pharmacy typically holds several batches of the same medication with
+/// different quantities and expiry dates.
 class InventoryItem extends Equatable {
   const InventoryItem({
     required this.id,
-    required this.pharmacyId,
+    required this.locationId,
     required this.medicationName,
     required this.strength,
     required this.form,
-    required this.currentStock,
     required this.reorderLevel,
     required this.unitCost,
-    required this.expiryDate,
+    this.barcode,
   });
 
   final String id;
-  final String pharmacyId;
+
+  /// Which clinic/pharmacy location this medication is stocked at.
+  final String locationId;
   final String medicationName;
   final String strength;
   final String form;
-  final int currentStock;
   final int reorderLevel;
+
+  /// Reference/typical unit cost, used to prefill new batches — the actual
+  /// cost paid lives on each [InventoryBatch] and can vary.
   final double unitCost;
-  final DateTime expiryDate;
+  final String? barcode;
 
-  bool get isLowStock => currentStock <= reorderLevel;
-
-  InventoryItem copyWith({int? currentStock}) {
+  InventoryItem copyWith({int? reorderLevel, double? unitCost, String? barcode}) {
     return InventoryItem(
       id: id,
-      pharmacyId: pharmacyId,
+      locationId: locationId,
       medicationName: medicationName,
       strength: strength,
       form: form,
-      currentStock: currentStock ?? this.currentStock,
-      reorderLevel: reorderLevel,
-      unitCost: unitCost,
-      expiryDate: expiryDate,
+      reorderLevel: reorderLevel ?? this.reorderLevel,
+      unitCost: unitCost ?? this.unitCost,
+      barcode: barcode ?? this.barcode,
     );
   }
 
   @override
   List<Object?> get props =>
-      [id, pharmacyId, medicationName, strength, form, currentStock, reorderLevel, unitCost, expiryDate];
+      [id, locationId, medicationName, strength, form, reorderLevel, unitCost, barcode];
 }

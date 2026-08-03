@@ -17,6 +17,7 @@ import '../../../health_tips/presentation/pages/health_tips_page.dart';
 import '../../../health_tips/presentation/widgets/health_tip_card.dart';
 import '../../../patient/presentation/providers/patient_providers.dart';
 import '../../domain/health_insights.dart';
+import '../providers/health_dashboard_providers.dart';
 import '../widgets/health_snapshot_card.dart';
 import '../widgets/next_appointment_banner.dart';
 import '../widgets/wellness_goal_row.dart';
@@ -36,7 +37,9 @@ class DashboardPage extends ConsumerWidget {
 
     final goals = ref.watch(wellnessGoalsProvider(user.id));
     final profile = ref.watch(patientProfileProvider(user.id));
-    final insights = profile == null ? const <HealthInsight>[] : buildHealthInsights(profile, goals);
+    final vitals = ref.watch(dashboardSummariesProvider(user.id));
+    final insights =
+        profile == null ? const <HealthInsight>[] : buildHealthInsights(profile, goals, vitals: vitals);
     final nextAppointment = ref.watch(nextUpcomingAppointmentProvider(user.id));
     final doctor = nextAppointment == null
         ? null

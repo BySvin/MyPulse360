@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../../shared/presentation/widgets/status_badge.dart';
 import '../../patient/domain/entities/patient_profile.dart';
 import '../../patient/domain/entities/wellness_goal.dart';
+import 'entities/metric_type.dart';
+import 'entities/vital_summary.dart';
 
 /// A short, rule-based dashboard callout derived from the patient's health
 /// profile and goals — not a clinical recommendation, just a nudge.
@@ -28,8 +30,13 @@ const _conditionTips = {
 };
 
 /// Generates a short list of dashboard insight cards from the patient's
-/// profile and current wellness goals. Pure and stateless — no I/O.
-List<HealthInsight> buildHealthInsights(PatientProfile profile, List<WellnessGoal> goals) {
+/// profile, current wellness goals, and (if a health platform is
+/// connected) synced device data. Pure and stateless — no I/O.
+List<HealthInsight> buildHealthInsights(
+  PatientProfile profile,
+  List<WellnessGoal> goals, {
+  List<VitalSummary> vitals = const [],
+}) {
   final insights = <HealthInsight>[];
 
   switch (profile.bmiCategory) {
@@ -90,5 +97,28 @@ List<HealthInsight> buildHealthInsights(PatientProfile profile, List<WellnessGoa
     ));
   }
 
-  return insights.take(4).toList();
+  VitalSummary? steps;
+  VitalSummary? sleep;
+  for (final v in vitals) {
+    if (v.type == MetricType.steps && v.sparkline.isNotEmpty) steps = v;
+    if (v.type == MetricType.sleepHours && v.sparkline.isNotEmpty) sleep = v;
+  }
+  if (steps != null && !steps.isNormal) {
+    insights.add(const HealthInsight(
+      icon: Icons.directions_walk_rounded,
+      title: 'Low daily steps',
+      message: 'Your synced step count has been under 5,000 lately — a short daily walk can help.',
+      tone: StatusTone.warning,
+    ));
+  }
+  if (sleep != null && !sleep.isNormal) {
+    insights.add(const HealthInsight(
+      icon: Icons.bedtime_outlined,
+      title: 'Low sleep',
+      message: 'Synced sleep has been under 6.5 hours a night — aim for 7-9 hours.',
+      tone: StatusTone.warning,
+    ));
+  }
+
+  return insights.take(5).toList();
 }

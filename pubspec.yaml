@@ -47,6 +47,7 @@ dependencies:
   shadcn_ui: ^0.56.0
   flutter_animate: ^4.5.2
   crypto: ^3.0.6
+  mobile_scanner: ^7.1.2
 
 dev_dependencies:
   flutter_test:

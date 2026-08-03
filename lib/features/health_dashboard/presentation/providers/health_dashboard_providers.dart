@@ -4,6 +4,7 @@ import '../../../../shared/mock/mock_database.dart';
 import '../../data/datasources/mock_health_metrics_datasource.dart';
 import '../../data/repositories/health_metrics_repository_impl.dart';
 import '../../domain/entities/health_metric.dart';
+import '../../domain/entities/health_platform_connection.dart';
 import '../../domain/entities/metric_type.dart';
 import '../../domain/entities/vital_summary.dart';
 import '../../domain/repositories/health_metrics_repository.dart';
@@ -24,4 +25,9 @@ final metricHistoryProvider =
     Provider.family<List<HealthMetric>, (String patientId, MetricType type)>((ref, args) {
   ref.watch(healthMetricsRevisionProvider);
   return ref.watch(healthMetricsRepositoryProvider).getHistory(args.$1, args.$2);
+});
+
+final healthPlatformConnectionProvider = Provider.family<HealthPlatformConnection?, String>((ref, patientId) {
+  ref.watch(healthMetricsRevisionProvider);
+  return ref.watch(healthMetricsRepositoryProvider).getConnection(patientId);
 });
