@@ -4,14 +4,15 @@ import 'package:intl/intl.dart';
 
 import '../../../../config/theme/app_radii.dart';
 import '../../../../config/theme/app_theme.dart';
+import '../../domain/entities/time_slot.dart';
 import '../providers/appointments_providers.dart';
 
 const _weekdayLetters = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
 /// Full month-grid date picker — replaces the old horizontal day-strip.
 /// Each day shows a dot: green if the doctor has open slots that day, grey
-/// if fully booked/in the past. Matches the P5 "calendar + slot grid"
-/// reference exactly.
+/// if fully booked/in the past, red if the doctor has approved leave that
+/// day. Matches the P5 "calendar + slot grid" reference exactly.
 class MonthCalendar extends ConsumerStatefulWidget {
   const MonthCalendar({
     super.key,
@@ -110,11 +111,13 @@ class _MonthCalendarState extends ConsumerState<MonthCalendar> {
             ],
           ),
           const SizedBox(height: 8),
-          Row(
+          Wrap(
+            spacing: 16,
+            runSpacing: 4,
             children: [
               _LegendDot(color: colors.success, label: 'Slots available'),
-              const SizedBox(width: 16),
               _LegendDot(color: colors.textTertiary, label: 'Unavailable'),
+              _LegendDot(color: colors.danger, label: 'Doctor on leave'),
             ],
           ),
         ],
@@ -128,9 +131,11 @@ class _MonthCalendarState extends ConsumerState<MonthCalendar> {
     final isPast = day.isBefore(todayDay);
     final selected = _isSameDay(day, widget.selectedDate);
 
-    final hasSlots = inMonth && !isPast
-        ? ref.watch(availableSlotsProvider((doctorId: widget.doctorId, date: day))).any((s) => !s.isDisabled)
-        : false;
+    final daySlots = inMonth && !isPast
+        ? ref.watch(availableSlotsProvider((doctorId: widget.doctorId, date: day)))
+        : const <TimeSlot>[];
+    final hasSlots = daySlots.any((s) => !s.isDisabled);
+    final onLeave = daySlots.any((s) => s.isDoctorOnLeave);
 
     return GestureDetector(
       onTap: !inMonth || isPast ? null : () => widget.onSelected(day),
@@ -167,9 +172,11 @@ class _MonthCalendarState extends ConsumerState<MonthCalendar> {
                           shape: BoxShape.circle,
                           color: selected
                               ? Colors.white
-                              : hasSlots
-                                  ? colors.success
-                                  : colors.textTertiary.withValues(alpha: 0.4),
+                              : onLeave
+                                  ? colors.danger
+                                  : hasSlots
+                                      ? colors.success
+                                      : colors.textTertiary.withValues(alpha: 0.4),
                         ),
                       ),
               ),

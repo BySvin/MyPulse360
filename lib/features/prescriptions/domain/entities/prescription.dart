@@ -18,6 +18,21 @@ enum PrescriptionStatus {
       };
 }
 
+/// Where a prescription record came from — whether it was issued through
+/// this clinic's own doctor/pharmacist flow, or digitized by the patient
+/// scanning a paper prescription from an outside prescriber. Scanned
+/// prescriptions never enter the pharmacist's own verification queue,
+/// since no in-app consultation or pharmacist stands behind them.
+enum PrescriptionSource {
+  inApp,
+  scannedExternal;
+
+  String get label => switch (this) {
+        PrescriptionSource.inApp => 'Issued at this clinic',
+        PrescriptionSource.scannedExternal => 'Scanned',
+      };
+}
+
 class Prescription extends Equatable {
   const Prescription({
     required this.id,
@@ -27,7 +42,9 @@ class Prescription extends Equatable {
     required this.expiryDate,
     required this.status,
     required this.items,
+    required this.source,
     this.consultationId,
+    this.externalDoctorName,
   });
 
   final String id;
@@ -38,6 +55,11 @@ class Prescription extends Equatable {
   final PrescriptionStatus status;
   final List<PrescriptionItem> items;
   final String? consultationId;
+  final PrescriptionSource source;
+
+  /// Free-text prescriber name for a scanned/external prescription, where
+  /// [doctorId] isn't a real in-app account.
+  final String? externalDoctorName;
 
   int get daysUntilExpiry => expiryDate.difference(DateTime.now()).inDays;
 
@@ -50,10 +72,23 @@ class Prescription extends Equatable {
       expiryDate: expiryDate,
       status: status ?? this.status,
       items: items,
+      source: source,
       consultationId: consultationId,
+      externalDoctorName: externalDoctorName,
     );
   }
 
   @override
-  List<Object?> get props => [id, patientId, doctorId, issuedDate, expiryDate, status, items, consultationId];
+  List<Object?> get props => [
+        id,
+        patientId,
+        doctorId,
+        issuedDate,
+        expiryDate,
+        status,
+        items,
+        consultationId,
+        source,
+        externalDoctorName,
+      ];
 }

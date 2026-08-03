@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../config/theme/app_theme.dart';
 import '../../../../shared/presentation/widgets/primary_button.dart';
 import '../providers/inventory_providers.dart';
-import 'barcode_scanner_sheet.dart';
+import '../../../../shared/presentation/widgets/barcode_scanner_sheet.dart';
 
 const _forms = ['Tablet', 'Capsule', 'Liquid', 'Injection', 'Inhaler', 'Cream'];
 

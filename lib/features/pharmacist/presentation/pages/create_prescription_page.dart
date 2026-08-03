@@ -42,6 +42,7 @@ class _CreatePrescriptionPageState extends ConsumerState<CreatePrescriptionPage>
             expiryDate: DateTime.now().add(const Duration(days: 30)),
             status: PrescriptionStatus.active,
             items: _items,
+            source: PrescriptionSource.inApp,
             consultationId: widget.consultationId,
           ),
         );

@@ -134,7 +134,7 @@ class DashboardPage extends ConsumerWidget {
             ),
             const SizedBox(height: 10),
             SizedBox(
-              height: 158,
+              height: 178,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: kHealthTips.length,

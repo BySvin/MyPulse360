@@ -1,6 +1,7 @@
 import '../../../../shared/mock/mock_database.dart';
 import '../../../../shared/utils/id_generator.dart';
 import '../../../../shared/utils/mock_latency.dart';
+import '../../../scheduling/domain/entities/leave_request.dart';
 import '../../domain/entities/appointment.dart';
 import '../../domain/entities/time_slot.dart';
 import 'appointments_datasource.dart';
@@ -39,6 +40,10 @@ class MockAppointmentsDataSource implements AppointmentsDataSource {
 
   @override
   List<TimeSlot> getAvailableSlots({required String doctorId, required DateTime date}) {
+    final onLeave = _db.leaveRequests.any(
+      (l) => l.staffId == doctorId && l.status == LeaveStatus.approved && l.coversDate(date),
+    );
+
     final booked = _db.appointments
         .where((a) =>
             a.doctorId == doctorId &&
@@ -57,7 +62,14 @@ class MockAppointmentsDataSource implements AppointmentsDataSource {
         final dt = DateTime(date.year, date.month, date.day, hour, minute);
         final isBooked = booked.contains(_SlotKey(hour: hour, minute: minute));
         final isPast = dt.isBefore(DateTime.now());
-        slots.add(TimeSlot(dateTime: dt, isBooked: isBooked, isDisabled: isBooked || isPast || isPastDay));
+        slots.add(
+          TimeSlot(
+            dateTime: dt,
+            isBooked: isBooked,
+            isDisabled: onLeave || isBooked || isPast || isPastDay,
+            isDoctorOnLeave: onLeave,
+          ),
+        );
       }
     }
     return slots;

@@ -1,19 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
-/// Opens a full-screen camera barcode scanner and returns the first
-/// decoded code, or null if the user cancels. Real camera capture via the
+/// Opens a full-screen camera barcode/QR scanner and returns the first
+/// decoded value, or null if the user cancels. Real camera capture via the
 /// `mobile_scanner` package — works on any device/emulator with a camera
 /// and the permission granted; there's no special developer-account
-/// requirement the way HealthKit/Fitbit integrations would need.
-Future<String?> showBarcodeScanner(BuildContext context) {
+/// requirement the way HealthKit/Fitbit integrations would need. Shared
+/// across features (pharmacist inventory stock-in, patient prescription
+/// scanning) since the scanning mechanics are identical either way.
+Future<String?> showBarcodeScanner(
+  BuildContext context, {
+  String title = 'Scan barcode',
+  String instructions = 'Point the camera at a barcode or QR code',
+}) {
   return Navigator.of(context).push<String>(
-    MaterialPageRoute(builder: (_) => const _BarcodeScannerPage(), fullscreenDialog: true),
+    MaterialPageRoute(
+      builder: (_) => _BarcodeScannerPage(title: title, instructions: instructions),
+      fullscreenDialog: true,
+    ),
   );
 }
 
 class _BarcodeScannerPage extends StatefulWidget {
-  const _BarcodeScannerPage();
+  const _BarcodeScannerPage({required this.title, required this.instructions});
+
+  final String title;
+  final String instructions;
 
   @override
   State<_BarcodeScannerPage> createState() => _BarcodeScannerPageState();
@@ -48,7 +60,7 @@ class _BarcodeScannerPageState extends State<_BarcodeScannerPage> {
       appBar: AppBar(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
-        title: const Text('Scan barcode'),
+        title: Text(widget.title),
         actions: [
           IconButton(
             onPressed: () => _controller.toggleTorch(),
@@ -69,11 +81,11 @@ class _BarcodeScannerPageState extends State<_BarcodeScannerPage> {
               borderRadius: BorderRadius.circular(16),
             ),
           ),
-          const Positioned(
+          Positioned(
             bottom: 40,
             child: Text(
-              'Point the camera at a medication barcode',
-              style: TextStyle(color: Colors.white70, fontSize: 13),
+              widget.instructions,
+              style: const TextStyle(color: Colors.white70, fontSize: 13),
             ),
           ),
         ],

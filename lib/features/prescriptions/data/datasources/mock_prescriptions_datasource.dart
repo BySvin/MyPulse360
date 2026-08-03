@@ -49,7 +49,11 @@ class MockPrescriptionsDataSource implements PrescriptionsDataSource {
 
   @override
   List<Prescription> getPendingVerification() {
-    return _db.prescriptions.where((p) => p.status == PrescriptionStatus.active).toList()
+    // Scanned/external prescriptions never queue for pharmacist
+    // verification — no in-app consultation or pharmacist wrote them.
+    return _db.prescriptions
+        .where((p) => p.status == PrescriptionStatus.active && p.source == PrescriptionSource.inApp)
+        .toList()
       ..sort((a, b) => b.issuedDate.compareTo(a.issuedDate));
   }
 
@@ -65,7 +69,9 @@ class MockPrescriptionsDataSource implements PrescriptionsDataSource {
             expiryDate: prescription.expiryDate,
             status: prescription.status,
             items: prescription.items,
+            source: prescription.source,
             consultationId: prescription.consultationId,
+            externalDoctorName: prescription.externalDoctorName,
           )
         : prescription;
     _db.prescriptions.add(withId);

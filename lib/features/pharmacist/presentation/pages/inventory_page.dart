@@ -8,7 +8,7 @@ import '../../../../shared/mock/mock_database.dart';
 import '../../../../shared/presentation/widgets/empty_state_view.dart';
 import '../providers/inventory_providers.dart';
 import '../widgets/add_medicine_sheet.dart';
-import '../widgets/barcode_scanner_sheet.dart';
+import '../../../../shared/presentation/widgets/barcode_scanner_sheet.dart';
 import '../widgets/inventory_row.dart';
 import 'inventory_analytics_page.dart';
 import 'inventory_item_detail_page.dart';

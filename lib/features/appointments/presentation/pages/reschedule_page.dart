@@ -5,6 +5,7 @@ import '../../../../config/theme/app_theme.dart';
 import '../../../../shared/presentation/widgets/app_card.dart';
 import '../../../../shared/presentation/widgets/large_title_app_bar.dart';
 import '../../../../shared/presentation/widgets/primary_button.dart';
+import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../domain/entities/appointment.dart';
 import '../../domain/entities/time_slot.dart';
 import '../providers/appointments_providers.dart';
@@ -48,6 +49,7 @@ class _ReschedulePageState extends ConsumerState<ReschedulePage> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final doctor = ref.watch(authRepositoryProvider).getUserById(widget.appointment.doctorId);
     final slots = ref
         .watch(availableSlotsProvider((doctorId: widget.appointment.doctorId, date: _selectedDate)))
         .map((s) {
@@ -80,7 +82,9 @@ class _ReschedulePageState extends ConsumerState<ReschedulePage> {
                   ? Padding(
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       child: Text(
-                        'No slots available this day. Try another date.',
+                        slots.any((s) => s.isDoctorOnLeave)
+                            ? '${doctor?.fullName ?? 'Your doctor'} is on leave this day. Please choose another date.'
+                            : 'No slots available this day. Try another date.',
                         style: TextStyle(color: colors.textSecondary, fontSize: 12),
                       ),
                     )

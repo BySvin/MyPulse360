@@ -13,6 +13,7 @@ List<Prescription> seedPrescriptions() {
       issuedDate: now.subtract(const Duration(days: 16)),
       expiryDate: now.add(const Duration(days: 30)),
       status: PrescriptionStatus.active,
+      source: PrescriptionSource.inApp,
       items: const [
         PrescriptionItem(
           id: 'rx-item-metformin',
@@ -35,6 +36,7 @@ List<Prescription> seedPrescriptions() {
       issuedDate: now.subtract(const Duration(days: 25)),
       expiryDate: now.add(const Duration(days: 5)),
       status: PrescriptionStatus.expiring,
+      source: PrescriptionSource.inApp,
       items: const [
         PrescriptionItem(
           id: 'rx-item-atorvastatin',
@@ -57,6 +59,7 @@ List<Prescription> seedPrescriptions() {
       issuedDate: now.subtract(const Duration(days: 90)),
       expiryDate: now.subtract(const Duration(days: 30)),
       status: PrescriptionStatus.expired,
+      source: PrescriptionSource.inApp,
       items: const [
         PrescriptionItem(
           id: 'rx-item-amoxicillin',
@@ -79,6 +82,7 @@ List<Prescription> seedPrescriptions() {
       issuedDate: now,
       expiryDate: now.add(const Duration(days: 30)),
       status: PrescriptionStatus.active,
+      source: PrescriptionSource.inApp,
       items: const [
         PrescriptionItem(
           id: 'rx-item-lisinopril',

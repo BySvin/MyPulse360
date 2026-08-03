@@ -165,7 +165,9 @@ class _BookAppointmentPageState extends ConsumerState<BookAppointmentPage> {
                   ? Padding(
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       child: Text(
-                        'No slots available this day. Try another date.',
+                        slots.any((s) => s.isDoctorOnLeave)
+                            ? '${doctor?.fullName ?? 'Your doctor'} is on leave this day. Please choose another date.'
+                            : 'No slots available this day. Try another date.',
                         style: TextStyle(color: colors.textSecondary, fontSize: 12),
                       ),
                     )
