@@ -83,4 +83,38 @@ void main() {
     expect(payload!.medications, hasLength(1));
     expect(payload.medications.single.medicationName, 'Metformin');
   });
+
+  group('buildFallbackScannedPayload', () {
+    test('never returns null and always produces exactly one medication', () {
+      final payload = buildFallbackScannedPayload('6291041500213');
+      expect(payload.medications, hasLength(1));
+      expect(payload.prescriberName, isNull);
+      expect(payload.expiryDate.difference(payload.issuedDate).inDays, 30);
+    });
+
+    test('leaves the name blank for a purely numeric barcode', () {
+      final payload = buildFallbackScannedPayload('6291041500213');
+      expect(payload.medications.single.medicationName, isEmpty);
+    });
+
+    test('uses the raw code as a name guess when it looks like readable text', () {
+      final payload = buildFallbackScannedPayload('Paracetamol 500mg Box');
+      expect(payload.medications.single.medicationName, 'Paracetamol 500mg Box');
+    });
+
+    test('truncates an overly long raw code used as a name guess', () {
+      final payload = buildFallbackScannedPayload('A' * 100);
+      expect(payload.medications.single.medicationName.length, 60);
+    });
+
+    test('fills in sensible defaults for every other field', () {
+      final payload = buildFallbackScannedPayload('some random text');
+      final med = payload.medications.single;
+      expect(med.quantity, 1);
+      expect(med.durationDays, 30);
+      expect(med.unit, 'units');
+      expect(med.frequency, 'As directed');
+      expect(med.instructions, isEmpty);
+    });
+  });
 }

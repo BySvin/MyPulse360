@@ -94,6 +94,37 @@ ScannedPrescriptionPayload? parseScannedPrescriptionPayload(String raw) {
   );
 }
 
+/// Builds a usable starting point from scanned content that isn't a
+/// recognized MyPulse360 payload — a real-world barcode off a medicine box,
+/// for instance, which is just an EAN/UPC number with no product database
+/// behind it here to look it up against. Never returns null: the patient
+/// reviews and fills in the actual details on the next screen, seeded with
+/// the raw code as a name guess when it looks like readable text.
+ScannedPrescriptionPayload buildFallbackScannedPayload(String raw) {
+  final trimmed = raw.trim();
+  final looksReadable = RegExp(r'[A-Za-z]{2,}').hasMatch(trimmed);
+  final now = DateTime.now();
+  return ScannedPrescriptionPayload(
+    issuedDate: now,
+    expiryDate: now.add(const Duration(days: 30)),
+    medications: [
+      PrescriptionItem(
+        id: 'scanned-item-0',
+        medicationName: looksReadable ? _truncate(trimmed, 60) : '',
+        strength: '',
+        form: 'tablet',
+        quantity: 1,
+        unit: 'units',
+        frequency: 'As directed',
+        durationDays: 30,
+        instructions: '',
+      ),
+    ],
+  );
+}
+
+String _truncate(String value, int maxLength) => value.length <= maxLength ? value : value.substring(0, maxLength);
+
 int? _asInt(Object? value) {
   if (value is int) return value;
   if (value is double) return value.toInt();
