@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../../config/theme/app_radii.dart';
 import '../../../../config/theme/app_theme.dart';
@@ -10,15 +12,17 @@ import '../../../../shared/utils/date_formatters.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../domain/entities/prescription.dart';
 import '../../domain/entities/prescription_item.dart';
+import '../../domain/scanned_prescription_ocr.dart';
 import '../../domain/scanned_prescription_parser.dart';
 import '../providers/prescriptions_providers.dart';
 
 /// Digitizes a paper prescription from an outside prescriber: the patient
-/// scans a QR/barcode and reviews (and, when needed, fills in) the details
-/// before saving. Most real-world codes — a barcode off a medicine box, say
-/// — aren't in MyPulse360's own JSON schema, so anything scanned is accepted
-/// and turned into an editable draft rather than rejected outright. This
-/// never touches the pharmacist's own verification queue; it's purely the
+/// scans a QR/barcode or takes a photo, then reviews (and, when needed,
+/// fills in) the details before saving. Most real-world codes — a barcode
+/// off a medicine box, say — aren't in MyPulse360's own JSON schema and
+/// can't encode things like expiry date at all, so both paths land on the
+/// same editable draft rather than presenting a guess as fact. This never
+/// touches the pharmacist's own verification queue; it's purely the
 /// patient's own copy of something prescribed elsewhere.
 class ScanPrescriptionPage extends ConsumerStatefulWidget {
   const ScanPrescriptionPage({super.key});
@@ -67,8 +71,11 @@ class _ScanPrescriptionPageState extends ConsumerState<ScanPrescriptionPage> {
   ScannedPrescriptionPayload? _payload;
   final TextEditingController _prescriberController = TextEditingController();
   List<_MedFormControllers> _medControllers = [];
+  DateTime _issuedDate = DateTime.now();
+  DateTime _expiryDate = DateTime.now().add(const Duration(days: 30));
   String? _validationError;
   bool _saving = false;
+  bool _processingPhoto = false;
 
   @override
   void dispose() {
@@ -96,6 +103,34 @@ class _ScanPrescriptionPageState extends ConsumerState<ScanPrescriptionPage> {
     _applyPayload(payload);
   }
 
+  Future<void> _takePhoto() async {
+    XFile? photo;
+    try {
+      photo = await ImagePicker().pickImage(source: ImageSource.camera, maxWidth: 2000);
+    } catch (_) {
+      photo = null;
+    }
+    if (photo == null || !mounted) return;
+
+    setState(() => _processingPhoto = true);
+
+    var recognizedText = '';
+    final recognizer = TextRecognizer(script: TextRecognitionScript.latin);
+    try {
+      recognizedText = (await recognizer.processImage(InputImage.fromFilePath(photo.path))).text;
+    } catch (_) {
+      recognizedText = '';
+    } finally {
+      await recognizer.close();
+    }
+    if (!mounted) return;
+
+    final payload =
+        recognizedText.trim().isEmpty ? buildFallbackScannedPayload('') : buildPayloadFromOcrText(recognizedText);
+    setState(() => _processingPhoto = false);
+    _applyPayload(payload);
+  }
+
   void _applyPayload(ScannedPrescriptionPayload payload) {
     for (final c in _medControllers) {
       c.dispose();
@@ -104,6 +139,8 @@ class _ScanPrescriptionPageState extends ConsumerState<ScanPrescriptionPage> {
       _payload = payload;
       _state = _ScanState.idle;
       _validationError = null;
+      _issuedDate = payload.issuedDate;
+      _expiryDate = payload.expiryDate;
       _prescriberController.text = payload.prescriberName ?? '';
       _medControllers = payload.medications.map(_MedFormControllers.new).toList();
     });
@@ -121,9 +158,8 @@ class _ScanPrescriptionPageState extends ConsumerState<ScanPrescriptionPage> {
   }
 
   Future<void> _save() async {
-    final payload = _payload;
     final user = ref.read(currentUserProvider);
-    if (payload == null || user == null) return;
+    if (_payload == null || user == null) return;
 
     final items = <PrescriptionItem>[];
     for (var i = 0; i < _medControllers.length; i++) {
@@ -162,8 +198,8 @@ class _ScanPrescriptionPageState extends ConsumerState<ScanPrescriptionPage> {
             id: '',
             patientId: user.id,
             doctorId: 'external',
-            issuedDate: payload.issuedDate,
-            expiryDate: payload.expiryDate,
+            issuedDate: _issuedDate,
+            expiryDate: _expiryDate,
             status: PrescriptionStatus.active,
             items: items,
             source: PrescriptionSource.scannedExternal,
@@ -239,20 +275,27 @@ class _ScanPrescriptionPageState extends ConsumerState<ScanPrescriptionPage> {
         ],
         const Spacer(),
         PrimaryButton(label: hasError ? 'Try Again' : 'Start Scanning', onPressed: _startScan),
+        const SizedBox(height: 10),
+        OutlinedButton.icon(
+          onPressed: _processingPhoto ? null : _takePhoto,
+          icon: _processingPhoto
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.camera_alt_outlined, size: 18),
+          label: Text(_processingPhoto ? 'Reading photo…' : 'Take a Photo Instead'),
+        ),
       ],
     );
   }
 
   Widget _buildReview(BuildContext context, AppSemanticColors colors) {
-    final payload = _payload!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Review before saving', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 4),
         Text(
-          "We couldn't always tell exactly what was on the code — check the details below and fix anything "
-          'before saving. This will be kept as a permanent record in your prescriptions.',
+          "These are our best guesses, not confirmed facts — double-check everything, especially the expiry "
+          'date, and fix anything before saving. This will be kept as a permanent record in your prescriptions.',
           style: TextStyle(fontSize: 12, color: colors.textSecondary),
         ),
         const SizedBox(height: 16),
@@ -274,10 +317,16 @@ class _ScanPrescriptionPageState extends ConsumerState<ScanPrescriptionPage> {
                       decoration: const InputDecoration(labelText: 'Prescriber (optional)', isDense: true),
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      'Issued ${DateFormatters.short(payload.issuedDate)} · '
-                      'Expires ${DateFormatters.short(payload.expiryDate)}',
-                      style: TextStyle(fontSize: 11.5, color: colors.textSecondary),
+                    Row(
+                      children: [
+                        Expanded(child: _dateField(context, colors, 'Issued', _issuedDate, (d) {
+                          setState(() => _issuedDate = d);
+                        })),
+                        const SizedBox(width: 16),
+                        Expanded(child: _dateField(context, colors, 'Expires', _expiryDate, (d) {
+                          setState(() => _expiryDate = d);
+                        })),
+                      ],
                     ),
                   ],
                 ),
@@ -313,6 +362,44 @@ class _ScanPrescriptionPageState extends ConsumerState<ScanPrescriptionPage> {
           ],
         ),
       ],
+    );
+  }
+
+  Widget _dateField(
+    BuildContext context,
+    AppSemanticColors colors,
+    String label,
+    DateTime value,
+    ValueChanged<DateTime> onChanged,
+  ) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: () async {
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: value,
+          firstDate: DateTime(2000),
+          lastDate: DateTime(2100),
+        );
+        if (picked != null) onChanged(picked);
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: TextStyle(fontSize: 10.5, color: colors.textTertiary)),
+          const SizedBox(height: 2),
+          Row(
+            children: [
+              Text(
+                DateFormatters.short(value),
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: colors.textPrimary),
+              ),
+              const SizedBox(width: 4),
+              Icon(Icons.edit_calendar_outlined, size: 13, color: colors.textTertiary),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
