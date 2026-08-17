@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../shared/mock/mock_database.dart';
+import '../../../appointments/domain/entities/appointment.dart';
+import '../../../appointments/presentation/providers/appointments_providers.dart';
 import '../../../auth/domain/entities/app_user.dart';
 import '../../../auth/domain/entities/user_role.dart';
 import '../../data/datasources/mock_scheduling_datasource.dart';
@@ -10,6 +12,7 @@ import '../../domain/entities/leave_request.dart';
 import '../../domain/entities/shift.dart';
 import '../../domain/entities/staff_notification.dart';
 import '../../domain/repositories/scheduling_repository.dart';
+import '../../domain/usecases/apply_leave_usecase.dart';
 
 final schedulingRepositoryProvider = Provider<SchedulingRepository>((ref) {
   return SchedulingRepositoryImpl(MockSchedulingDataSource(ref.watch(mockDatabaseProvider)));
@@ -49,6 +52,26 @@ final clinicLeaveRequestsProvider = Provider.family<List<LeaveRequest>, String>(
 final staffLeaveRequestsProvider = Provider.family<List<LeaveRequest>, String>((ref, staffId) {
   ref.watch(schedulingRevisionProvider);
   return ref.watch(schedulingRepositoryProvider).getLeaveRequestsForStaff(staffId);
+});
+
+final applyLeaveUseCaseProvider = Provider<ApplyLeaveUseCase>((ref) {
+  return ApplyLeaveUseCase(
+    ref.watch(schedulingRepositoryProvider),
+    ref.watch(appointmentsRepositoryProvider),
+  );
+});
+
+/// Live appointments that a leave over [start]-[end] would displace — used
+/// to warn before applying and to explain what was cancelled after.
+final appointmentsInLeaveRangeProvider =
+    Provider.family<List<Appointment>, ({String doctorId, DateTime start, DateTime end})>((ref, args) {
+  ref.watch(appointmentsRevisionProvider);
+  ref.watch(schedulingRevisionProvider);
+  return ref.watch(applyLeaveUseCaseProvider).appointmentsInRange(
+        doctorId: args.doctorId,
+        startDate: args.start,
+        endDate: args.end,
+      );
 });
 
 final openAttendanceProvider = Provider.family<AttendanceRecord?, String>((ref, staffId) {

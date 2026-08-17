@@ -28,13 +28,11 @@ import '../../features/patient/presentation/pages/onboarding_wellness_goals_page
 import '../../features/patient/presentation/pages/profile_page.dart';
 import '../../features/patient/presentation/providers/patient_providers.dart';
 import '../../features/pharmacist/presentation/pages/create_prescription_page.dart';
-import '../../features/pharmacist/presentation/pages/inventory_page.dart';
 import '../../features/pharmacist/presentation/pages/pharmacist_dashboard_page.dart';
 import '../../features/pharmacist/presentation/pages/pharmacist_prescriptions_page.dart';
 import '../../features/pharmacist/presentation/pages/prescription_verification_page.dart';
 import '../../features/prescriptions/presentation/pages/prescriptions_list_page.dart';
-import '../../features/scheduling/presentation/pages/my_schedule_page.dart';
-import '../../features/scheduling/presentation/pages/schedule_page.dart';
+import '../../features/scheduling/presentation/pages/apply_leave_page.dart';
 import '../../shared/presentation/widgets/app_shell_scaffold.dart';
 import '../../shared/presentation/widgets/clinician_app_shell.dart';
 import '../theme/app_theme.dart';
@@ -216,7 +214,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           StatefulShellBranch(
             routes: [
-              GoRoute(path: RoutePaths.doctorSchedule, builder: (_, _) => const SchedulePage()),
+              GoRoute(path: RoutePaths.doctorApplyLeave, builder: (_, _) => const ApplyLeavePage()),
             ],
           ),
         ],
@@ -255,16 +253,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 path: RoutePaths.pharmacistPrescriptions,
                 builder: (_, _) => const PharmacistPrescriptionsPage(),
               ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(path: RoutePaths.pharmacistInventory, builder: (_, _) => const InventoryPage()),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(path: RoutePaths.pharmacistSchedule, builder: (_, _) => const MySchedulePage()),
             ],
           ),
         ],

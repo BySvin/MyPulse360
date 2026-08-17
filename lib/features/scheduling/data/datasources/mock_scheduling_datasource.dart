@@ -150,18 +150,33 @@ class MockSchedulingDataSource implements SchedulingDataSource {
     required DateTime startDate,
     required DateTime endDate,
     required String reason,
+    bool autoApprove = false,
   }) async {
     await simulateLatency();
+    final now = DateTime.now();
     final request = LeaveRequest(
       id: generateId(),
       staffId: staffId,
       startDate: startDate,
       endDate: endDate,
       reason: reason,
-      status: LeaveStatus.pending,
-      requestedAt: DateTime.now(),
+      status: autoApprove ? LeaveStatus.approved : LeaveStatus.pending,
+      requestedAt: now,
+      decidedBy: autoApprove ? staffId : null,
+      decidedAt: autoApprove ? now : null,
     );
     _db.leaveRequests.add(request);
+    if (autoApprove) {
+      _db.staffNotifications.add(
+        StaffNotification(
+          id: generateId(),
+          staffId: staffId,
+          message: 'Leave approved for ${_shortDate(startDate)}-${_shortDate(endDate)}. '
+              'Patients can no longer book you on those dates.',
+          sentAt: now,
+        ),
+      );
+    }
     return request;
   }
 
@@ -185,6 +200,12 @@ class MockSchedulingDataSource implements SchedulingDataSource {
         sentAt: DateTime.now(),
       ),
     );
+  }
+
+  @override
+  Future<void> cancelLeave(String leaveId) async {
+    await simulateLatency();
+    _db.leaveRequests.removeWhere((l) => l.id == leaveId);
   }
 
   @override

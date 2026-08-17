@@ -1,29 +1,42 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../config/theme/app_radii.dart';
 import '../../../../config/theme/app_theme.dart';
 import '../../../../shared/presentation/widgets/primary_button.dart';
+import '../../../../shared/utils/date_formatters.dart';
+import '../../../appointments/presentation/providers/appointments_providers.dart';
 import '../providers/scheduling_providers.dart';
 
-Future<void> showRequestLeaveSheet(BuildContext context, WidgetRef ref, String staffId) {
-  return showModalBottomSheet(
+/// Leave form. The leave is granted on submission and the booking system
+/// is updated in the same step — the doctor is the clinic admin, so a
+/// pending state would have nobody to approve it.
+///
+/// (The repository still takes an `autoApprove` flag, so a request-then-
+/// approve flow can be reintroduced for other roles without touching the
+/// data layer.)
+///
+/// Returns the number of appointments that were cancelled by the leave, or
+/// `null` if the sheet was dismissed.
+Future<int?> showApplyLeaveSheet(BuildContext context, WidgetRef ref, String staffId) {
+  return showModalBottomSheet<int>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (context) => _RequestLeaveSheet(staffId: staffId),
+    builder: (context) => _ApplyLeaveSheet(staffId: staffId),
   );
 }
 
-class _RequestLeaveSheet extends ConsumerStatefulWidget {
-  const _RequestLeaveSheet({required this.staffId});
+class _ApplyLeaveSheet extends ConsumerStatefulWidget {
+  const _ApplyLeaveSheet({required this.staffId});
 
   final String staffId;
 
   @override
-  ConsumerState<_RequestLeaveSheet> createState() => _RequestLeaveSheetState();
+  ConsumerState<_ApplyLeaveSheet> createState() => _ApplyLeaveSheetState();
 }
 
-class _RequestLeaveSheetState extends ConsumerState<_RequestLeaveSheet> {
+class _ApplyLeaveSheetState extends ConsumerState<_ApplyLeaveSheet> {
   final _reasonController = TextEditingController();
   DateTime _start = DateTime.now();
   DateTime _end = DateTime.now();
@@ -61,16 +74,19 @@ class _RequestLeaveSheetState extends ConsumerState<_RequestLeaveSheet> {
 
   Future<void> _save() async {
     setState(() => _saving = true);
-    await ref.read(schedulingRepositoryProvider).requestLeave(
+
+    final result = await ref.read(applyLeaveUseCaseProvider).call(
           staffId: widget.staffId,
           startDate: _start,
           endDate: _end,
           reason: _reasonController.text.trim(),
         );
+
     ref.read(schedulingRevisionProvider.notifier).state++;
+    ref.read(appointmentsRevisionProvider.notifier).state++;
     if (!mounted) return;
     setState(() => _saving = false);
-    Navigator.of(context).pop();
+    Navigator.of(context).pop(result.cancelledAppointments.length);
   }
 
   String _fmt(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
@@ -78,6 +94,11 @@ class _RequestLeaveSheetState extends ConsumerState<_RequestLeaveSheet> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final dayCount = _end.difference(DateTime(_start.year, _start.month, _start.day)).inDays + 1;
+    final clashes = ref.watch(
+      appointmentsInLeaveRangeProvider((doctorId: widget.staffId, start: _start, end: _end)),
+    );
+
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: SafeArea(
@@ -99,7 +120,13 @@ class _RequestLeaveSheetState extends ConsumerState<_RequestLeaveSheet> {
                   decoration: BoxDecoration(color: colors.border, borderRadius: BorderRadius.circular(2)),
                 ),
               ),
-              Text('Request Leave', style: Theme.of(context).textTheme.titleLarge),
+              Text('Apply for Leave', style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 4),
+              Text(
+                'Approved as soon as you submit — patients will not be offered any slot '
+                'with you on these dates.',
+                style: TextStyle(fontSize: 12, color: colors.textSecondary),
+              ),
               const SizedBox(height: 18),
               Row(
                 children: [
@@ -132,6 +159,11 @@ class _RequestLeaveSheetState extends ConsumerState<_RequestLeaveSheet> {
                   ),
                 ],
               ),
+              const SizedBox(height: 6),
+              Text(
+                '$dayCount ${dayCount == 1 ? 'day' : 'days'} off',
+                style: TextStyle(fontSize: 11.5, color: colors.textTertiary),
+              ),
               const SizedBox(height: 12),
               TextField(
                 controller: _reasonController,
@@ -142,8 +174,45 @@ class _RequestLeaveSheetState extends ConsumerState<_RequestLeaveSheet> {
                   isDense: true,
                 ),
               ),
+              if (clashes.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: colors.warning.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(AppRadii.card),
+                    border: Border.all(color: colors.warning.withValues(alpha: 0.35)),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.event_busy_outlined, size: 18, color: colors.warning),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${clashes.length} booked ${clashes.length == 1 ? 'appointment' : 'appointments'} '
+                              'in this window',
+                              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'They will be cancelled when the leave is applied: '
+                              '${clashes.take(3).map((a) => DateFormatters.short(a.scheduledAt)).join(', ')}'
+                              '${clashes.length > 3 ? '…' : ''}',
+                              style: TextStyle(fontSize: 11.5, color: colors.textSecondary),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 20),
-              PrimaryButton(label: 'Submit Request', onPressed: _save, loading: _saving),
+              PrimaryButton(label: 'Apply for Leave', onPressed: _save, loading: _saving),
             ],
           ),
         ),
