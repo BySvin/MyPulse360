@@ -59,21 +59,22 @@ Test SQL is committed under `supabase/tests/` so it is re-runnable, not typed on
 
 **Interfaces:**
 - Consumes: nothing (first task)
-- Produces: 14 enum types; `public.set_updated_at()` trigger function; `public.auth_role() returns public.user_role`; `public.auth_clinic() returns uuid`. Every later task uses `auth_role()` and `auth_clinic()` in policies and attaches `set_updated_at()` to mutable tables.
+- Produces: 14 enum types and the `public.set_updated_at()` trigger function. Every later task attaches `set_updated_at()` to its mutable tables.
+- **Not** `auth_role()`/`auth_clinic()` — those moved to Task 2. See the note in Step 3.
 
 - [ ] **Step 1: Write the failing test**
 
 Create `supabase/tests/0001_foundation_test.sql`:
 
 ```sql
--- Expect 14 enum types and 3 helper functions.
+-- Expect 14 enum types and the one trigger helper.
 select case when count(*) = 14 then 'PASS' else 'FAIL: ' || count(*) || ' enums' end as status
 from pg_type t join pg_namespace n on n.oid = t.typnamespace
 where n.nspname = 'public' and t.typtype = 'e';
 
-select case when count(*) = 3 then 'PASS' else 'FAIL: ' || count(*) || ' helpers' end as status
+select case when count(*) = 1 then 'PASS' else 'FAIL: ' || count(*) || ' helpers' end as status
 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-where n.nspname = 'public' and p.proname in ('set_updated_at', 'auth_role', 'auth_clinic');
+where n.nspname = 'public' and p.proname = 'set_updated_at';
 ```
 
 - [ ] **Step 2: Run the test to verify it fails**
@@ -111,28 +112,17 @@ begin
   return new;
 end;
 $$;
-
--- Read the caller's own profile row with definer rights, so policies on
--- `profiles` do not recurse when they call these.
-create or replace function public.auth_role()
-returns public.user_role
-language sql stable security definer set search_path = public, pg_temp as $$
-  select role from public.profiles where id = auth.uid()
-$$;
-
-create or replace function public.auth_clinic()
-returns uuid
-language sql stable security definer set search_path = public, pg_temp as $$
-  select clinic_id from public.profiles where id = auth.uid()
-$$;
-
-revoke all on function public.auth_role()   from public, anon;
-revoke all on function public.auth_clinic() from public, anon;
-grant execute on function public.auth_role()   to authenticated;
-grant execute on function public.auth_clinic() to authenticated;
 ```
 
-> `auth_role()` and `auth_clinic()` reference `public.profiles`, created in Task 2. Postgres resolves function bodies at call time, not creation time, so this migration applies cleanly against an empty database. The functions are unusable until Task 2 lands — that is expected and the Task 1 test does not call them.
+> **Why the helpers are not here.** `auth_role()` and `auth_clinic()` read
+> `public.profiles`, which Task 2 creates. An earlier draft placed them in this
+> migration, assuming Postgres resolves function bodies at call time. That holds
+> only for `plpgsql`: a `language sql` body is parsed and validated against the
+> catalog at `CREATE FUNCTION` time, so it fails with `42P01 undefined_table`
+> and rolls back the entire migration, enums included. The helpers therefore
+> live in Task 2, created after `profiles` and before the policies that call
+> them. Do not "fix" this by setting `check_function_bodies = off` or by
+> stubbing a `profiles` table — the ordering is the fix.
 
 - [ ] **Step 4: Apply the migration**
 
@@ -146,7 +136,7 @@ Re-run `supabase/tests/0001_foundation_test.sql`. Expected: both rows `PASS`.
 
 ```bash
 git add supabase/migrations/0001_foundation.sql supabase/tests/0001_foundation_test.sql
-git commit -m "feat(db): add enum types and RLS helper functions"
+git commit -m "feat(db): add enum types and the updated-at trigger helper"
 ```
 
 ---
@@ -158,8 +148,8 @@ git commit -m "feat(db): add enum types and RLS helper functions"
 - Create: `supabase/tests/0002_identity_test.sql`
 
 **Interfaces:**
-- Consumes: `auth_role()`, `auth_clinic()`, `set_updated_at()`, `user_role` (Task 1)
-- Produces: tables `clinics`, `profiles`, `patient_profiles`, `doctor_profiles`, `pharmacist_profiles`; function `public.doctor_directory(p_search text, p_specialization text)` returning `(id uuid, full_name text, avatar_url text, specialization text, bio text, average_rating numeric, clinic_id uuid)`. Every later task's policies reference `profiles`.
+- Consumes: `set_updated_at()`, `user_role` (Task 1)
+- Produces: tables `clinics`, `profiles`, `patient_profiles`, `doctor_profiles`, `pharmacist_profiles`; `public.auth_role() returns public.user_role`; `public.auth_clinic() returns uuid`; `public.doctor_directory(p_search text, p_specialization text)` returning `(id uuid, full_name text, avatar_url text, specialization text, bio text, average_rating numeric, clinic_id uuid)`. Every later task's policies call `auth_role()`/`auth_clinic()` and reference `profiles`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -179,11 +169,17 @@ where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity
 select case when count(*) = 1 then 'PASS' else 'FAIL: doctor_directory missing' end as status
 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
 where n.nspname = 'public' and p.proname = 'doctor_directory';
+
+-- The two policy helpers land here, not in Task 1: a `language sql` body is
+-- validated at CREATE FUNCTION time, so they cannot exist before `profiles`.
+select case when count(*) = 3 then 'PASS' else 'FAIL: ' || count(*) || ' of 3 helpers' end as status
+from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public' and p.proname in ('set_updated_at','auth_role','auth_clinic');
 ```
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Expected: `FAIL: 0 of 5 tables` and `FAIL: doctor_directory missing`.
+Expected: `FAIL: 0 of 5 tables`, `FAIL: doctor_directory missing`, and `FAIL: 1 of 3 helpers`.
 
 - [ ] **Step 3: Write the migration**
 
@@ -262,6 +258,27 @@ create trigger profiles_touch            before update on public.profiles       
 create trigger patient_profiles_touch    before update on public.patient_profiles    for each row execute function public.set_updated_at();
 create trigger doctor_profiles_touch     before update on public.doctor_profiles     for each row execute function public.set_updated_at();
 create trigger pharmacist_profiles_touch before update on public.pharmacist_profiles for each row execute function public.set_updated_at();
+
+-- Created here, not in Task 1: these read `profiles`, and a `language sql`
+-- body is validated against the catalog at CREATE FUNCTION time. They must also
+-- exist before any policy below calls them. Definer rights are what stop the
+-- policies on `profiles` from recursing.
+create or replace function public.auth_role()
+returns public.user_role
+language sql stable security definer set search_path = public, pg_temp as $$
+  select role from public.profiles where id = auth.uid()
+$$;
+
+create or replace function public.auth_clinic()
+returns uuid
+language sql stable security definer set search_path = public, pg_temp as $$
+  select clinic_id from public.profiles where id = auth.uid()
+$$;
+
+revoke all on function public.auth_role()   from public, anon;
+revoke all on function public.auth_clinic() from public, anon;
+grant execute on function public.auth_role()   to authenticated;
+grant execute on function public.auth_clinic() to authenticated;
 
 alter table public.clinics             enable row level security;
 alter table public.profiles            enable row level security;
@@ -347,7 +364,7 @@ MCP `get_advisors` with `type: "security"`. Expected: no ERROR-level findings. R
 
 ```bash
 git add supabase/migrations/0002_identity.sql supabase/tests/0002_identity_test.sql
-git commit -m "feat(db): add identity tables, RLS policies and doctor directory"
+git commit -m "feat(db): add identity tables, RLS helpers, policies and doctor directory"
 ```
 
 ---
@@ -505,16 +522,15 @@ git commit -m "feat(db): add appointments schema with double-booking prevention"
 
 ---
 
-## Task 4: Booking RPCs — `available_slots` and `book_appointment`
+## Task 4: Booking RPCs — `book_appointment` and friends
 
 **Files:**
 - Create: `supabase/migrations/0004_booking_rpcs.sql`
 - Create: `supabase/tests/0004_booking_rpcs_test.sql`
 
 **Interfaces:**
-- Consumes: `appointments`, `doctor_availability` (Task 3); `leave_requests` and `staff_unavailability` are referenced but created in Task 8 — see the note in Step 3.
+- Consumes: `appointments`, `doctor_availability` (Task 3). Calls `public.available_slots()`, which Task 8 creates — see the ordering note in Step 3.
 - Produces:
-  - `public.available_slots(p_doctor uuid, p_date date)` returning `(slot_at timestamptz, is_booked boolean, is_doctor_on_leave boolean, is_past boolean)` — the exact shape Dart's `TimeSlot` needs.
   - `public.book_appointment(p_doctor uuid, p_at timestamptz, p_type text, p_reason text)` returning `public.appointments`.
   - `public.reschedule_appointment(p_appointment uuid, p_new_at timestamptz)` returning `public.appointments`.
   - `public.set_appointment_status(p_appointment uuid, p_status public.appointment_status)` returning `public.appointments`.
@@ -525,85 +541,36 @@ git commit -m "feat(db): add appointments schema with double-booking prevention"
 Create `supabase/tests/0004_booking_rpcs_test.sql`:
 
 ```sql
-select case when count(*) = 5 then 'PASS' else 'FAIL: ' || count(*) || ' of 5 functions' end as status
+select case when count(*) = 4 then 'PASS' else 'FAIL: ' || count(*) || ' of 4 functions' end as status
 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
 where n.nspname = 'public'
-  and p.proname in ('available_slots','book_appointment','reschedule_appointment',
+  and p.proname in ('book_appointment','reschedule_appointment',
                     'set_appointment_status','queue_position');
-
--- available_slots must return the four columns TimeSlot maps from.
-select case when count(*) = 4 then 'PASS' else 'FAIL: wrong column set' end as status
-from information_schema.routines r
-join information_schema.parameters pa on pa.specific_name = r.specific_name
-where r.routine_schema = 'public' and r.routine_name = 'available_slots'
-  and pa.parameter_mode = 'TABLE'
-  and pa.parameter_name in ('slot_at','is_booked','is_doctor_on_leave','is_past');
 ```
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Expected: `FAIL: 0 of 5 functions`.
+Expected: `FAIL: 0 of 4 functions`.
 
 - [ ] **Step 3: Write the migration**
 
 Create `supabase/migrations/0004_booking_rpcs.sql`.
 
-> **Ordering note.** These functions reference `public.leave_requests` and
-> `public.staff_unavailability`, which Task 8 creates. Postgres resolves
-> function bodies at call time, so this migration applies cleanly now, but
-> calling `available_slots` before Task 8 raises `undefined_table`. Task 4's
-> tests therefore assert only that the functions exist and have the right
-> signature. Behavioural tests for booking live in Task 11, after every
-> referenced table exists.
+> **Ordering note.** `book_appointment` and `reschedule_appointment` call
+> `public.available_slots()`, which does **not** exist yet — Task 8 creates it,
+> because its body reads `leave_requests` and `staff_unavailability`.
+>
+> That forward reference is safe here and only here: both callers are
+> `plpgsql`, whose bodies are syntax-checked but not resolved against the
+> catalog at `CREATE FUNCTION` time. A `language sql` body would be resolved
+> and would fail with `42P01`. This is exactly why `available_slots` itself had
+> to move to Task 8 — do not move it back, and do not convert these callers to
+> `language sql`.
+>
+> Consequence: booking cannot be *executed* until Task 8 lands. Task 4's tests
+> assert the functions exist; the behavioural tests live in Task 11.
 
 ```sql
-create or replace function public.available_slots(p_doctor uuid, p_date date)
-returns table (
-  slot_at timestamptz, is_booked boolean,
-  is_doctor_on_leave boolean, is_past boolean
-)
-language sql stable security definer set search_path = public, pg_temp as $$
-  with avail as (
-    select start_time, end_time, slot_minutes
-    from public.doctor_availability
-    where doctor_id = p_doctor
-      and weekday = extract(isodow from p_date)::smallint - 1
-  ),
-  on_leave as (
-    select exists (
-      select 1 from public.leave_requests l
-      where l.staff_id = p_doctor and l.status = 'approved'
-        and p_date between l.start_date and l.end_date
-    ) or exists (
-      select 1 from public.staff_unavailability u
-      where u.staff_id = p_doctor and u.date = p_date
-    ) as flag
-  ),
-  slots as (
-    -- `p_date + start_time` is a timestamp WITHOUT time zone. Left implicit,
-    -- the cast to timestamptz would use the connection's TimeZone setting, so
-    -- two clients in different zones would compute different absolute slots.
-    -- Anchor to UTC explicitly; `appointments.scheduled_at` is timestamptz.
-    select generate_series(
-             (p_date + a.start_time) at time zone 'UTC',
-             (p_date + a.end_time) at time zone 'UTC' - make_interval(mins => a.slot_minutes),
-             make_interval(mins => a.slot_minutes)
-           ) as slot_at
-    from avail a
-  )
-  select s.slot_at,
-         exists (
-           select 1 from public.appointments ap
-           where ap.doctor_id = p_doctor
-             and ap.scheduled_at = s.slot_at
-             and ap.status <> 'cancelled'
-         ) as is_booked,
-         (select flag from on_leave) as is_doctor_on_leave,
-         s.slot_at < now() as is_past
-  from slots s
-  order by s.slot_at
-$$;
-
 create or replace function public.book_appointment(
   p_doctor uuid,
   p_at     timestamptz,
@@ -711,13 +678,11 @@ language sql stable security definer set search_path = public, pg_temp as $$
     and a.scheduled_at <= t.scheduled_at
 $$;
 
-revoke all on function public.available_slots(uuid, date)                          from public, anon;
 revoke all on function public.book_appointment(uuid, timestamptz, text, text)      from public, anon;
 revoke all on function public.reschedule_appointment(uuid, timestamptz)            from public, anon;
 revoke all on function public.set_appointment_status(uuid, public.appointment_status) from public, anon;
 revoke all on function public.queue_position(uuid)                                 from public, anon;
 
-grant execute on function public.available_slots(uuid, date)                          to authenticated;
 grant execute on function public.book_appointment(uuid, timestamptz, text, text)      to authenticated;
 grant execute on function public.reschedule_appointment(uuid, timestamptz)            to authenticated;
 grant execute on function public.set_appointment_status(uuid, public.appointment_status) to authenticated;
@@ -730,7 +695,7 @@ MCP `apply_migration`, `name: "booking_rpcs"`.
 
 - [ ] **Step 5: Run the test to verify it passes**
 
-Re-run `supabase/tests/0004_booking_rpcs_test.sql`. Expected: two `PASS` rows.
+Re-run `supabase/tests/0004_booking_rpcs_test.sql`. Expected: one `PASS` row.
 
 - [ ] **Step 6: Commit**
 
@@ -1329,7 +1294,7 @@ git commit -m "feat(db): add pharmacy inventory with FEFO dispensing"
 **Interfaces:**
 - Consumes: `profiles`, `clinics` (Task 2); `appointments` (Task 3); `shift_status`, `leave_status` (Task 1)
 - Produces: tables `shifts`, `leave_requests`, `staff_unavailability`, `attendance_records`, `staff_notifications`; functions `public.apply_leave(p_start date, p_end date, p_reason text)` returning `public.leave_requests`, `public.decide_leave(p_request uuid, p_status public.leave_status)` returning `public.leave_requests`, `public.clock_in(p_shift uuid)` and `public.clock_out()` both returning `public.attendance_records`.
-- **This task completes the tables `available_slots` (Task 4) depends on.** After it lands, `available_slots` is callable.
+- **This task also creates `public.available_slots(p_doctor uuid, p_date date)`** returning `(slot_at timestamptz, is_booked boolean, is_doctor_on_leave boolean, is_past boolean)` — the exact shape Dart's `TimeSlot` needs. It lives here because its `language sql` body reads this task's tables. Task 4's `book_appointment` has been calling it all along; after this task lands, booking is executable.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1344,14 +1309,23 @@ from pg_tables where schemaname = 'public'
 select case when count(*) = 1 then 'PASS' else 'FAIL: open-attendance index missing' end as status
 from pg_indexes where schemaname = 'public' and indexname = 'attendance_one_open_per_staff';
 
-select case when count(*) = 4 then 'PASS' else 'FAIL: ' || count(*) || ' of 4 functions' end as status
+select case when count(*) = 5 then 'PASS' else 'FAIL: ' || count(*) || ' of 5 functions' end as status
 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-where n.nspname = 'public' and p.proname in ('apply_leave','decide_leave','clock_in','clock_out');
+where n.nspname = 'public'
+  and p.proname in ('apply_leave','decide_leave','clock_in','clock_out','available_slots');
+
+-- available_slots must return the four columns Dart's TimeSlot maps from.
+select case when count(*) = 4 then 'PASS' else 'FAIL: wrong column set' end as status
+from information_schema.routines r
+join information_schema.parameters pa on pa.specific_name = r.specific_name
+where r.routine_schema = 'public' and r.routine_name = 'available_slots'
+  and pa.parameter_mode = 'TABLE'
+  and pa.parameter_name in ('slot_at','is_booked','is_doctor_on_leave','is_past');
 ```
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Expected: `FAIL: 0 of 5 tables`, `FAIL: open-attendance index missing`, `FAIL: 0 of 4 functions`.
+Expected: `FAIL: 0 of 5 tables`, `FAIL: open-attendance index missing`, `FAIL: 0 of 5 functions`.
 
 - [ ] **Step 3: Write the migration**
 
@@ -1471,6 +1445,58 @@ create policy staff_notifications_mark_read on public.staff_notifications
   for update to authenticated
   using (staff_id = auth.uid()) with check (staff_id = auth.uid());
 
+-- Lives here, not in Task 4: this is a `language sql` body, so Postgres
+-- resolves `leave_requests` and `staff_unavailability` against the catalog at
+-- CREATE FUNCTION time. It cannot be created before those tables exist.
+-- Task 4's book_appointment already calls it; that is legal because plpgsql
+-- bodies are not resolved until run time.
+create or replace function public.available_slots(p_doctor uuid, p_date date)
+returns table (
+  slot_at timestamptz, is_booked boolean,
+  is_doctor_on_leave boolean, is_past boolean
+)
+language sql stable security definer set search_path = public, pg_temp as $$
+  with avail as (
+    select start_time, end_time, slot_minutes
+    from public.doctor_availability
+    where doctor_id = p_doctor
+      and weekday = extract(isodow from p_date)::smallint - 1
+  ),
+  on_leave as (
+    select exists (
+      select 1 from public.leave_requests l
+      where l.staff_id = p_doctor and l.status = 'approved'
+        and p_date between l.start_date and l.end_date
+    ) or exists (
+      select 1 from public.staff_unavailability u
+      where u.staff_id = p_doctor and u.date = p_date
+    ) as flag
+  ),
+  slots as (
+    -- `p_date + start_time` is a timestamp WITHOUT time zone. Left implicit,
+    -- the cast to timestamptz would use the connection's TimeZone setting, so
+    -- two clients in different zones would compute different absolute slots.
+    -- Anchor to UTC explicitly; `appointments.scheduled_at` is timestamptz.
+    select generate_series(
+             (p_date + a.start_time) at time zone 'UTC',
+             (p_date + a.end_time) at time zone 'UTC' - make_interval(mins => a.slot_minutes),
+             make_interval(mins => a.slot_minutes)
+           ) as slot_at
+    from avail a
+  )
+  select s.slot_at,
+         exists (
+           select 1 from public.appointments ap
+           where ap.doctor_id = p_doctor
+             and ap.scheduled_at = s.slot_at
+             and ap.status <> 'cancelled'
+         ) as is_booked,
+         (select flag from on_leave) as is_doctor_on_leave,
+         s.slot_at < now() as is_past
+  from slots s
+  order by s.slot_at
+$$;
+
 create or replace function public.apply_leave(
   p_start date, p_end date, p_reason text
 )
@@ -1588,11 +1614,13 @@ begin
 end;
 $$;
 
+revoke all on function public.available_slots(uuid, date)                  from public, anon;
 revoke all on function public.apply_leave(date, date, text)                from public, anon;
 revoke all on function public.decide_leave(uuid, public.leave_status)      from public, anon;
 revoke all on function public.clock_in(uuid)                               from public, anon;
 revoke all on function public.clock_out()                                  from public, anon;
 
+grant execute on function public.available_slots(uuid, date)               to authenticated;
 grant execute on function public.apply_leave(date, date, text)             to authenticated;
 grant execute on function public.decide_leave(uuid, public.leave_status)   to authenticated;
 grant execute on function public.clock_in(uuid)                            to authenticated;
@@ -1605,7 +1633,7 @@ MCP `apply_migration`, `name: "scheduling"`.
 
 - [ ] **Step 5: Run the test to verify it passes**
 
-Re-run `supabase/tests/0008_scheduling_test.sql`. Expected: three `PASS` rows.
+Re-run `supabase/tests/0008_scheduling_test.sql`. Expected: four `PASS` rows.
 
 - [ ] **Step 6: Check security advisors**
 
@@ -1615,7 +1643,7 @@ MCP `get_advisors` with `type: "security"`. Expected: no ERROR-level findings.
 
 ```bash
 git add supabase/migrations/0008_scheduling.sql supabase/tests/0008_scheduling_test.sql
-git commit -m "feat(db): add scheduling tables with leave and attendance RPCs"
+git commit -m "feat(db): add scheduling tables, leave/attendance RPCs and available_slots"
 ```
 
 ---
