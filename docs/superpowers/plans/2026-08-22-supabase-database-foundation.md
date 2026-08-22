@@ -1477,13 +1477,143 @@ git add supabase/migrations/0009_pharmacy.sql supabase/tests/0009_pharmacy_test.
 git commit -m "feat(db): add pharmacy inventory with FEFO dispensing"
 ```
 
+- [ ] **Step 8: Make a short dispense fail loudly instead of silently**
+
+Found by review of Step 3. `dispense_fefo` checks total stock with an unlocked
+`select sum(...)`, then consumes batches under `for update`. Two pharmacists
+dispensing the same item concurrently can both pass the check, because neither
+sees the other's uncommitted decrements. They then serialise on the row locks;
+the second one re-evaluates each locked row under EvalPlanQual, finds batches
+already drained to zero, skips them (`b.quantity > 0`), and exhausts the cursor
+with `v_remaining > 0`.
+
+At that point the function simply `return`s. It reports success having dispensed
+**less medication than was asked for**, with no exception and no signal to the
+caller. For a pharmacy that is the wrong failure mode.
+
+`for update` does correctly prevent double-spending any single batch, so stock
+never goes negative — the gap is purely in the aggregate check.
+
+Note the review's suggested alternative — adding `for update` to the sufficiency
+query — is not available: Postgres rejects `FOR UPDATE` with aggregate
+functions. The post-loop guard is the fix.
+
+Create `supabase/tests/0010_dispense_fefo_shortfall_test.sql`:
+
+```sql
+-- The function must not be able to return having dispensed less than asked.
+select case when count(*) = 1 then 'PASS' else 'FAIL: no post-loop shortfall guard' end as status
+from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public' and p.proname = 'dispense_fefo'
+  and pg_get_functiondef(p.oid) like '%v_remaining > 0%';
+
+-- The guard must raise, not warn or silently correct.
+select case when count(*) = 1 then 'PASS' else 'FAIL: shortfall does not raise 23514' end as status
+from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public' and p.proname = 'dispense_fefo'
+  and pg_get_functiondef(p.oid) like '%short by%';
+```
+
+Run each assertion separately — expect two `FAIL` rows. Then create
+`supabase/migrations/0010_dispense_fefo_shortfall.sql`, which re-declares the
+function identically except for the guard added immediately before the final
+`return;`:
+
+```sql
+-- Replaces dispense_fefo to close a silent short-fulfilment path. The
+-- sufficiency check is unlocked, so a concurrent dispense can drain batches
+-- between the check and the loop; the loser previously returned fewer rows
+-- than requested and reported success. Raising here aborts the invocation, so
+-- its partial decrements and dispense rows roll back with it.
+create or replace function public.dispense_fefo(
+  p_item         uuid,
+  p_qty          int,
+  p_prescription uuid default null
+)
+returns setof public.dispense_records
+language plpgsql volatile security definer set search_path = public, pg_temp as $$
+declare
+  v_remaining int := p_qty;
+  v_take      int;
+  v_batch     record;
+  v_total     int;
+begin
+  if public.auth_role() <> 'pharmacist' then
+    raise exception 'only pharmacists may dispense' using errcode = '42501';
+  end if;
+  if p_qty <= 0 then
+    raise exception 'quantity must be positive' using errcode = '22023';
+  end if;
+
+  select coalesce(sum(b.quantity), 0) into v_total
+  from public.inventory_batches b
+  join public.inventory_items i on i.id = b.item_id
+  where b.item_id = p_item
+    and i.location_id = public.auth_clinic()
+    and b.expiry_date >= current_date;
+
+  if v_total < p_qty then
+    raise exception 'insufficient stock: % available, % requested', v_total, p_qty
+      using errcode = '23514';
+  end if;
+
+  for v_batch in
+    select b.id, b.quantity
+    from public.inventory_batches b
+    join public.inventory_items i on i.id = b.item_id
+    where b.item_id = p_item
+      and i.location_id = public.auth_clinic()
+      and b.expiry_date >= current_date
+      and b.quantity > 0
+    order by b.expiry_date, b.received_date
+    for update
+  loop
+    exit when v_remaining <= 0;
+    v_take := least(v_batch.quantity, v_remaining);
+
+    update public.inventory_batches
+       set quantity = quantity - v_take
+     where id = v_batch.id;
+
+    return query
+      insert into public.dispense_records
+        (item_id, quantity, batch_id, prescription_id, dispensed_by)
+      values (p_item, v_take, v_batch.id, p_prescription, auth.uid())
+      returning *;
+
+    v_remaining := v_remaining - v_take;
+  end loop;
+
+  -- A concurrent dispense drained stock after the check above passed. Fail the
+  -- whole call rather than quietly handing over less medication than asked for.
+  if v_remaining > 0 then
+    raise exception 'insufficient stock: short by % of % requested', v_remaining, p_qty
+      using errcode = '23514';
+  end if;
+
+  return;
+end;
+$$;
+```
+
+Apply as `apply_migration`, `name: "dispense_fefo_shortfall"`. Re-run both
+assertions — expect two `PASS`. Re-run `get_advisors(type: "security")`.
+
+```bash
+git add supabase/migrations/0010_dispense_fefo_shortfall.sql supabase/tests/0010_dispense_fefo_shortfall_test.sql
+git commit -m "fix(db): fail loudly when a concurrent dispense leaves stock short"
+```
+
+> Grants do not need re-issuing: `create or replace function` preserves the
+> existing ACL, and the signature is unchanged. Task 11 asserts the ACL anyway.
+
 ---
 
 ## Task 8: Scheduling — shifts, leave, unavailability, attendance, notifications
 
 **Files:**
-- Create: `supabase/migrations/0010_scheduling.sql`
-- Create: `supabase/tests/0010_scheduling_test.sql`
+- Create: `supabase/migrations/0011_scheduling.sql`
+- Create: `supabase/tests/0011_scheduling_test.sql`
 
 **Interfaces:**
 - Consumes: `profiles`, `clinics` (Task 2); `appointments` (Task 3); `shift_status`, `leave_status` (Task 1)
@@ -1492,7 +1622,7 @@ git commit -m "feat(db): add pharmacy inventory with FEFO dispensing"
 
 - [ ] **Step 1: Write the failing test**
 
-Create `supabase/tests/0010_scheduling_test.sql`:
+Create `supabase/tests/0011_scheduling_test.sql`:
 
 ```sql
 select case when count(*) = 5 then 'PASS' else 'FAIL: ' || count(*) || ' of 5 tables' end as status
@@ -1523,7 +1653,7 @@ Expected: `FAIL: 0 of 5 tables`, `FAIL: open-attendance index missing`, `FAIL: 0
 
 - [ ] **Step 3: Write the migration**
 
-Create `supabase/migrations/0010_scheduling.sql`:
+Create `supabase/migrations/0011_scheduling.sql`:
 
 ```sql
 create table public.shifts (
@@ -1827,7 +1957,7 @@ MCP `apply_migration`, `name: "scheduling"`.
 
 - [ ] **Step 5: Run the test to verify it passes**
 
-Re-run `supabase/tests/0010_scheduling_test.sql`. Expected: four `PASS` rows.
+Re-run `supabase/tests/0011_scheduling_test.sql`. Expected: four `PASS` rows.
 
 - [ ] **Step 6: Check security advisors**
 
@@ -1836,7 +1966,7 @@ MCP `get_advisors` with `type: "security"`. Expected: no ERROR-level findings.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add supabase/migrations/0010_scheduling.sql supabase/tests/0010_scheduling_test.sql
+git add supabase/migrations/0011_scheduling.sql supabase/tests/0011_scheduling_test.sql
 git commit -m "feat(db): add scheduling tables, leave/attendance RPCs and available_slots"
 ```
 
@@ -1845,8 +1975,8 @@ git commit -m "feat(db): add scheduling tables, leave/attendance RPCs and availa
 ## Task 9: Chat — conversations and messages
 
 **Files:**
-- Create: `supabase/migrations/0011_chat.sql`
-- Create: `supabase/tests/0011_chat_test.sql`
+- Create: `supabase/migrations/0012_chat.sql`
+- Create: `supabase/tests/0012_chat_test.sql`
 
 **Interfaces:**
 - Consumes: `profiles` (Task 2); `chat_sender` (Task 1)
@@ -1854,7 +1984,7 @@ git commit -m "feat(db): add scheduling tables, leave/attendance RPCs and availa
 
 - [ ] **Step 1: Write the failing test**
 
-Create `supabase/tests/0011_chat_test.sql`:
+Create `supabase/tests/0012_chat_test.sql`:
 
 ```sql
 select case when count(*) = 2 then 'PASS' else 'FAIL: ' || count(*) || ' of 2 tables' end as status
@@ -1873,7 +2003,7 @@ Expected: `FAIL: 0 of 2 tables`, `FAIL: body column missing`.
 
 - [ ] **Step 3: Write the migration**
 
-Create `supabase/migrations/0011_chat.sql`:
+Create `supabase/migrations/0012_chat.sql`:
 
 ```sql
 create table public.chat_conversations (
@@ -1922,7 +2052,7 @@ MCP `apply_migration`, `name: "chat"`.
 
 - [ ] **Step 5: Run the test to verify it passes**
 
-Re-run `supabase/tests/0011_chat_test.sql`. Expected: two `PASS` rows.
+Re-run `supabase/tests/0012_chat_test.sql`. Expected: two `PASS` rows.
 
 - [ ] **Step 6: Check security advisors**
 
@@ -1931,7 +2061,7 @@ MCP `get_advisors` with `type: "security"`. Expected: no ERROR-level findings.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add supabase/migrations/0011_chat.sql supabase/tests/0011_chat_test.sql
+git add supabase/migrations/0012_chat.sql supabase/tests/0012_chat_test.sql
 git commit -m "feat(db): add chat conversations and messages"
 ```
 
@@ -1941,7 +2071,7 @@ git commit -m "feat(db): add chat conversations and messages"
 
 **Files:**
 - Create: `supabase/seed.sql`
-- Create: `supabase/tests/0012_seed_test.sql`
+- Create: `supabase/tests/0013_seed_test.sql`
 - Read for reference: `lib/shared/mock/fixtures/*.dart`, `lib/shared/mock/mock_ids.dart`
 
 **Interfaces:**
@@ -1957,7 +2087,7 @@ git commit -m "feat(db): add chat conversations and messages"
 
 - [ ] **Step 1: Write the failing test**
 
-Create `supabase/tests/0012_seed_test.sql`:
+Create `supabase/tests/0013_seed_test.sql`:
 
 ```sql
 select case when count(*) = 5 then 'PASS' else 'FAIL: ' || count(*) || ' of 5 demo users' end as status
@@ -2088,7 +2218,7 @@ MCP `execute_sql` with the file contents. Seed data is not schema, so it is **no
 
 - [ ] **Step 5: Run the test to verify it passes**
 
-Re-run `supabase/tests/0012_seed_test.sql`. Expected: three `PASS` rows.
+Re-run `supabase/tests/0013_seed_test.sql`. Expected: three `PASS` rows.
 
 - [ ] **Step 6: Verify a demo login actually works**
 
@@ -2104,7 +2234,7 @@ Expected: `PASS`. This proves the hash is in GoTrue's format, not merely that a 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add supabase/seed.sql supabase/tests/0012_seed_test.sql
+git add supabase/seed.sql supabase/tests/0013_seed_test.sql
 git commit -m "feat(db): seed clinics, demo accounts, availability and inventory"
 ```
 
@@ -2113,8 +2243,8 @@ git commit -m "feat(db): seed clinics, demo accounts, availability and inventory
 ## Task 11: Security verification — cross-tenant isolation and RPC behaviour
 
 **Files:**
-- Create: `supabase/tests/0013_rls_isolation_test.sql`
-- Create: `supabase/tests/0014_rpc_behaviour_test.sql`
+- Create: `supabase/tests/0014_rls_isolation_test.sql`
+- Create: `supabase/tests/0015_rpc_behaviour_test.sql`
 
 **Interfaces:**
 - Consumes: everything from Tasks 1–10
@@ -2125,7 +2255,7 @@ breach, so isolation is asserted, not assumed.
 
 - [ ] **Step 1: Write the isolation tests**
 
-Create `supabase/tests/0013_rls_isolation_test.sql`:
+Create `supabase/tests/0014_rls_isolation_test.sql`:
 
 ```sql
 -- Aisha must not see Daniel's medical row.
@@ -2234,7 +2364,7 @@ Any `FAIL` is a blocker. Fix the offending policy, re-apply, re-run — do not p
 
 - [ ] **Step 3: Write the RPC behaviour tests**
 
-Create `supabase/tests/0014_rpc_behaviour_test.sql`:
+Create `supabase/tests/0015_rpc_behaviour_test.sql`:
 
 ```sql
 -- available_slots returns 16 half-hour slots for a Wednesday (09:00-17:00).
@@ -2331,7 +2461,7 @@ the commit message rather than silently leaving them.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add supabase/tests/0013_rls_isolation_test.sql supabase/tests/0014_rpc_behaviour_test.sql
+git add supabase/tests/0014_rls_isolation_test.sql supabase/tests/0015_rpc_behaviour_test.sql
 git commit -m "test(db): assert cross-tenant isolation and RPC invariants"
 ```
 
