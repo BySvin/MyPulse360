@@ -367,13 +367,119 @@ git add supabase/migrations/0002_identity.sql supabase/tests/0002_identity_test.
 git commit -m "feat(db): add identity tables, RLS helpers, policies and doctor directory"
 ```
 
+- [ ] **Step 8: Harden self-update to specific columns**
+
+Found by review of Step 3. The self-update policies above restrict which **row**
+a user may update, but not which **columns**. `profiles.role` and
+`profiles.clinic_id` are ordinary columns that `auth_role()` and `auth_clinic()`
+read, so an authenticated patient could run
+`update public.profiles set role = 'doctor' where id = auth.uid()` and
+immediately satisfy `profiles_read_clinic_staff`, exposing every profile's email
+and phone in that clinic.
+
+RLS chooses rows; column grants choose columns. Authorization needs both.
+
+`0002_identity.sql` is already applied and migrations are immutable, so this is
+a new file. Create `supabase/tests/0003_identity_hardening_test.sql`:
+
+```sql
+-- authenticated must not hold UPDATE on any column that grants authority.
+select case when count(*) = 0 then 'PASS'
+            else 'FAIL: authenticated may update ' || string_agg(column_name, ', ') end as status
+from information_schema.column_privileges
+where table_schema = 'public' and table_name = 'profiles'
+  and grantee = 'authenticated' and privilege_type = 'UPDATE'
+  and column_name in ('role','clinic_id','email','is_active','must_change_password');
+
+-- ...but must still hold UPDATE on the presentational ones.
+select case when count(*) = 3 then 'PASS' else 'FAIL: ' || count(*) || ' of 3 editable columns' end as status
+from information_schema.column_privileges
+where table_schema = 'public' and table_name = 'profiles'
+  and grantee = 'authenticated' and privilege_type = 'UPDATE'
+  and column_name in ('full_name','phone','avatar_url');
+
+-- A doctor may edit only their bio.
+select case when count(*) = 0 then 'PASS'
+            else 'FAIL: doctor may update ' || string_agg(column_name, ', ') end as status
+from information_schema.column_privileges
+where table_schema = 'public' and table_name = 'doctor_profiles'
+  and grantee = 'authenticated' and privilege_type = 'UPDATE'
+  and column_name in ('license_number','specialization','clinic_id','average_rating');
+
+-- A patient must not self-assign a doctor.
+select case when count(*) = 0 then 'PASS' else 'FAIL: assigned_doctor_id is self-editable' end as status
+from information_schema.column_privileges
+where table_schema = 'public' and table_name = 'patient_profiles'
+  and grantee = 'authenticated' and privilege_type = 'UPDATE'
+  and column_name = 'assigned_doctor_id';
+
+-- The `for all` policy also permitted DELETE; it must be gone.
+select case when count(*) = 0 then 'PASS' else 'FAIL: patient_profiles_write_self still present' end as status
+from pg_policies where schemaname = 'public' and policyname = 'patient_profiles_write_self';
+```
+
+Run it — expect five `FAIL` rows. Then create
+`supabase/migrations/0003_identity_hardening.sql`:
+
+```sql
+-- RLS chooses rows; column grants choose columns. 0002 had only the first half,
+-- so a self-update could rewrite the very columns auth_role()/auth_clinic()
+-- read to decide authorization.
+revoke update on public.profiles from authenticated;
+grant  update (full_name, phone, avatar_url) on public.profiles to authenticated;
+
+-- average_rating is system-derived; licence, specialisation and clinic are
+-- administrative. Only the bio is the doctor's to edit.
+revoke update on public.doctor_profiles from authenticated;
+grant  update (bio) on public.doctor_profiles to authenticated;
+
+-- A pharmacist has no self-editable fields at all.
+drop policy if exists pharmacist_profiles_update_self on public.pharmacist_profiles;
+revoke update on public.pharmacist_profiles from authenticated;
+
+-- `for all` also granted DELETE, which would orphan the row while the parent
+-- profiles row survived. Split it into explicit insert and update policies.
+-- The read path is unaffected: patient_profiles_read_self already covers select.
+drop policy if exists patient_profiles_write_self on public.patient_profiles;
+
+create policy patient_profiles_insert_self on public.patient_profiles
+  for insert to authenticated
+  with check (id = auth.uid());
+
+create policy patient_profiles_update_self on public.patient_profiles
+  for update to authenticated
+  using (id = auth.uid()) with check (id = auth.uid());
+
+-- Patients own their medical data, but not which doctor they are assigned to.
+revoke update on public.patient_profiles from authenticated;
+grant update (
+  date_of_birth, gender, blood_type, height_cm, weight_kg,
+  allergies, chronic_conditions, current_medications,
+  insurance_provider, emergency_contact_name, emergency_contact_phone,
+  preferred_clinic_id, preferred_language,
+  notify_appointments, notify_prescriptions, notify_health_tips
+) on public.patient_profiles to authenticated;
+```
+
+Apply as `apply_migration`, `name: "identity_hardening"`. Re-run the test —
+expect five `PASS` rows. Re-run `get_advisors(type: "security")`.
+
+```bash
+git add supabase/migrations/0003_identity_hardening.sql supabase/tests/0003_identity_hardening_test.sql
+git commit -m "fix(db): restrict self-update to non-authority columns"
+```
+
+> The behavioural proof — an actual patient attempting the escalation and being
+> refused — lands in Task 11, which is the first point real seeded users exist.
+> These assertions verify the grants; Task 11 verifies the consequence.
+
 ---
 
 ## Task 3: Appointments — availability, appointments, consultations
 
 **Files:**
-- Create: `supabase/migrations/0003_appointments.sql`
-- Create: `supabase/tests/0003_appointments_test.sql`
+- Create: `supabase/migrations/0004_appointments.sql`
+- Create: `supabase/tests/0004_appointments_test.sql`
 
 **Interfaces:**
 - Consumes: `profiles`, `clinics` (Task 2); `appointment_status`, `consultation_status`, `set_updated_at()` (Task 1)
@@ -381,7 +487,7 @@ git commit -m "feat(db): add identity tables, RLS helpers, policies and doctor d
 
 - [ ] **Step 1: Write the failing test**
 
-Create `supabase/tests/0003_appointments_test.sql`:
+Create `supabase/tests/0004_appointments_test.sql`:
 
 ```sql
 select case when count(*) = 3 then 'PASS' else 'FAIL: ' || count(*) || ' of 3 tables' end as status
@@ -405,7 +511,7 @@ Expected: `FAIL: 0 of 3 tables` and `FAIL: double-booking index missing`.
 
 - [ ] **Step 3: Write the migration**
 
-Create `supabase/migrations/0003_appointments.sql`:
+Create `supabase/migrations/0004_appointments.sql`:
 
 ```sql
 create table public.doctor_availability (
@@ -507,7 +613,7 @@ MCP `apply_migration`, `name: "appointments"`.
 
 - [ ] **Step 5: Run the test to verify it passes**
 
-Re-run `supabase/tests/0003_appointments_test.sql`. Expected: three `PASS` rows.
+Re-run `supabase/tests/0004_appointments_test.sql`. Expected: three `PASS` rows.
 
 - [ ] **Step 6: Check security advisors**
 
@@ -516,7 +622,7 @@ MCP `get_advisors` with `type: "security"`. Expected: no ERROR-level findings.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add supabase/migrations/0003_appointments.sql supabase/tests/0003_appointments_test.sql
+git add supabase/migrations/0004_appointments.sql supabase/tests/0004_appointments_test.sql
 git commit -m "feat(db): add appointments schema with double-booking prevention"
 ```
 
@@ -525,8 +631,8 @@ git commit -m "feat(db): add appointments schema with double-booking prevention"
 ## Task 4: Booking RPCs — `book_appointment` and friends
 
 **Files:**
-- Create: `supabase/migrations/0004_booking_rpcs.sql`
-- Create: `supabase/tests/0004_booking_rpcs_test.sql`
+- Create: `supabase/migrations/0005_booking_rpcs.sql`
+- Create: `supabase/tests/0005_booking_rpcs_test.sql`
 
 **Interfaces:**
 - Consumes: `appointments`, `doctor_availability` (Task 3). Calls `public.available_slots()`, which Task 8 creates — see the ordering note in Step 3.
@@ -538,7 +644,7 @@ git commit -m "feat(db): add appointments schema with double-booking prevention"
 
 - [ ] **Step 1: Write the failing test**
 
-Create `supabase/tests/0004_booking_rpcs_test.sql`:
+Create `supabase/tests/0005_booking_rpcs_test.sql`:
 
 ```sql
 select case when count(*) = 4 then 'PASS' else 'FAIL: ' || count(*) || ' of 4 functions' end as status
@@ -554,7 +660,7 @@ Expected: `FAIL: 0 of 4 functions`.
 
 - [ ] **Step 3: Write the migration**
 
-Create `supabase/migrations/0004_booking_rpcs.sql`.
+Create `supabase/migrations/0005_booking_rpcs.sql`.
 
 > **Ordering note.** `book_appointment` and `reschedule_appointment` call
 > `public.available_slots()`, which does **not** exist yet — Task 8 creates it,
@@ -695,12 +801,12 @@ MCP `apply_migration`, `name: "booking_rpcs"`.
 
 - [ ] **Step 5: Run the test to verify it passes**
 
-Re-run `supabase/tests/0004_booking_rpcs_test.sql`. Expected: one `PASS` row.
+Re-run `supabase/tests/0005_booking_rpcs_test.sql`. Expected: one `PASS` row.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add supabase/migrations/0004_booking_rpcs.sql supabase/tests/0004_booking_rpcs_test.sql
+git add supabase/migrations/0005_booking_rpcs.sql supabase/tests/0005_booking_rpcs_test.sql
 git commit -m "feat(db): add booking, reschedule and queue-position RPCs"
 ```
 
@@ -709,8 +815,8 @@ git commit -m "feat(db): add booking, reschedule and queue-position RPCs"
 ## Task 5: Prescriptions — prescriptions, items, drug interactions, safety lookup
 
 **Files:**
-- Create: `supabase/migrations/0005_prescriptions.sql`
-- Create: `supabase/tests/0005_prescriptions_test.sql`
+- Create: `supabase/migrations/0006_prescriptions.sql`
+- Create: `supabase/tests/0006_prescriptions_test.sql`
 
 **Interfaces:**
 - Consumes: `profiles`, `patient_profiles`, `pharmacist_profiles` (Task 2); `consultations` (Task 3); `prescription_status`, `prescription_source`, `interaction_severity` (Task 1)
@@ -718,7 +824,7 @@ git commit -m "feat(db): add booking, reschedule and queue-position RPCs"
 
 - [ ] **Step 1: Write the failing test**
 
-Create `supabase/tests/0005_prescriptions_test.sql`:
+Create `supabase/tests/0006_prescriptions_test.sql`:
 
 ```sql
 select case when count(*) = 3 then 'PASS' else 'FAIL: ' || count(*) || ' of 3 tables' end as status
@@ -740,7 +846,7 @@ Expected: `FAIL: 0 of 3 tables`, `FAIL: prescription_safety missing`, `FAIL: pre
 
 - [ ] **Step 3: Write the migration**
 
-Create `supabase/migrations/0005_prescriptions.sql`:
+Create `supabase/migrations/0006_prescriptions.sql`:
 
 ```sql
 create table public.prescriptions (
@@ -859,7 +965,7 @@ MCP `apply_migration`, `name: "prescriptions"`.
 
 - [ ] **Step 5: Run the test to verify it passes**
 
-Re-run `supabase/tests/0005_prescriptions_test.sql`. Expected: three `PASS` rows.
+Re-run `supabase/tests/0006_prescriptions_test.sql`. Expected: three `PASS` rows.
 
 - [ ] **Step 6: Check security advisors**
 
@@ -868,7 +974,7 @@ MCP `get_advisors` with `type: "security"`. Expected: no ERROR-level findings.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add supabase/migrations/0005_prescriptions.sql supabase/tests/0005_prescriptions_test.sql
+git add supabase/migrations/0006_prescriptions.sql supabase/tests/0006_prescriptions_test.sql
 git commit -m "feat(db): add prescriptions, items, interactions and safety lookup"
 ```
 
@@ -877,8 +983,8 @@ git commit -m "feat(db): add prescriptions, items, interactions and safety looku
 ## Task 6: Health — metrics, platform connections, goals, progress
 
 **Files:**
-- Create: `supabase/migrations/0006_health.sql`
-- Create: `supabase/tests/0006_health_test.sql`
+- Create: `supabase/migrations/0007_health.sql`
+- Create: `supabase/tests/0007_health_test.sql`
 
 **Interfaces:**
 - Consumes: `profiles`, `patient_profiles` (Task 2); `appointments` (Task 3); `metric_type`, `health_platform`, `wellness_goal_type`, `goal_status` (Task 1)
@@ -886,7 +992,7 @@ git commit -m "feat(db): add prescriptions, items, interactions and safety looku
 
 - [ ] **Step 1: Write the failing test**
 
-Create `supabase/tests/0006_health_test.sql`:
+Create `supabase/tests/0007_health_test.sql`:
 
 ```sql
 select case when count(*) = 4 then 'PASS' else 'FAIL: ' || count(*) || ' of 4 tables' end as status
@@ -908,7 +1014,7 @@ Expected: `FAIL: 0 of 4 tables`, `FAIL: dashboard index missing`.
 
 - [ ] **Step 3: Write the migration**
 
-Create `supabase/migrations/0006_health.sql`:
+Create `supabase/migrations/0007_health.sql`:
 
 ```sql
 create table public.health_metrics (
@@ -1018,7 +1124,7 @@ MCP `apply_migration`, `name: "health"`.
 
 - [ ] **Step 5: Run the test to verify it passes**
 
-Re-run `supabase/tests/0006_health_test.sql`. Expected: three `PASS` rows.
+Re-run `supabase/tests/0007_health_test.sql`. Expected: three `PASS` rows.
 
 - [ ] **Step 6: Check security advisors**
 
@@ -1027,7 +1133,7 @@ MCP `get_advisors` with `type: "security"`. Expected: no ERROR-level findings.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add supabase/migrations/0006_health.sql supabase/tests/0006_health_test.sql
+git add supabase/migrations/0007_health.sql supabase/tests/0007_health_test.sql
 git commit -m "feat(db): add health metrics, goals and progress with RLS"
 ```
 
@@ -1036,8 +1142,8 @@ git commit -m "feat(db): add health metrics, goals and progress with RLS"
 ## Task 7: Pharmacy — suppliers, items, batches, wastage, FEFO dispensing
 
 **Files:**
-- Create: `supabase/migrations/0007_pharmacy.sql`
-- Create: `supabase/tests/0007_pharmacy_test.sql`
+- Create: `supabase/migrations/0008_pharmacy.sql`
+- Create: `supabase/tests/0008_pharmacy_test.sql`
 
 **Interfaces:**
 - Consumes: `clinics`, `profiles` (Task 2); `prescriptions` (Task 5); `wastage_reason` (Task 1)
@@ -1045,7 +1151,7 @@ git commit -m "feat(db): add health metrics, goals and progress with RLS"
 
 - [ ] **Step 1: Write the failing test**
 
-Create `supabase/tests/0007_pharmacy_test.sql`:
+Create `supabase/tests/0008_pharmacy_test.sql`:
 
 ```sql
 select case when count(*) = 5 then 'PASS' else 'FAIL: ' || count(*) || ' of 5 tables' end as status
@@ -1066,7 +1172,7 @@ Expected: `FAIL: 0 of 5 tables`, `FAIL: FEFO index missing`, `FAIL: dispense_fef
 
 - [ ] **Step 3: Write the migration**
 
-Create `supabase/migrations/0007_pharmacy.sql`:
+Create `supabase/migrations/0008_pharmacy.sql`:
 
 ```sql
 create table public.suppliers (
@@ -1270,7 +1376,7 @@ MCP `apply_migration`, `name: "pharmacy"`.
 
 - [ ] **Step 5: Run the test to verify it passes**
 
-Re-run `supabase/tests/0007_pharmacy_test.sql`. Expected: three `PASS` rows.
+Re-run `supabase/tests/0008_pharmacy_test.sql`. Expected: three `PASS` rows.
 
 - [ ] **Step 6: Check security advisors**
 
@@ -1279,7 +1385,7 @@ MCP `get_advisors` with `type: "security"`. Expected: no ERROR-level findings.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add supabase/migrations/0007_pharmacy.sql supabase/tests/0007_pharmacy_test.sql
+git add supabase/migrations/0008_pharmacy.sql supabase/tests/0008_pharmacy_test.sql
 git commit -m "feat(db): add pharmacy inventory with FEFO dispensing"
 ```
 
@@ -1288,8 +1394,8 @@ git commit -m "feat(db): add pharmacy inventory with FEFO dispensing"
 ## Task 8: Scheduling — shifts, leave, unavailability, attendance, notifications
 
 **Files:**
-- Create: `supabase/migrations/0008_scheduling.sql`
-- Create: `supabase/tests/0008_scheduling_test.sql`
+- Create: `supabase/migrations/0009_scheduling.sql`
+- Create: `supabase/tests/0009_scheduling_test.sql`
 
 **Interfaces:**
 - Consumes: `profiles`, `clinics` (Task 2); `appointments` (Task 3); `shift_status`, `leave_status` (Task 1)
@@ -1298,7 +1404,7 @@ git commit -m "feat(db): add pharmacy inventory with FEFO dispensing"
 
 - [ ] **Step 1: Write the failing test**
 
-Create `supabase/tests/0008_scheduling_test.sql`:
+Create `supabase/tests/0009_scheduling_test.sql`:
 
 ```sql
 select case when count(*) = 5 then 'PASS' else 'FAIL: ' || count(*) || ' of 5 tables' end as status
@@ -1329,7 +1435,7 @@ Expected: `FAIL: 0 of 5 tables`, `FAIL: open-attendance index missing`, `FAIL: 0
 
 - [ ] **Step 3: Write the migration**
 
-Create `supabase/migrations/0008_scheduling.sql`:
+Create `supabase/migrations/0009_scheduling.sql`:
 
 ```sql
 create table public.shifts (
@@ -1633,7 +1739,7 @@ MCP `apply_migration`, `name: "scheduling"`.
 
 - [ ] **Step 5: Run the test to verify it passes**
 
-Re-run `supabase/tests/0008_scheduling_test.sql`. Expected: four `PASS` rows.
+Re-run `supabase/tests/0009_scheduling_test.sql`. Expected: four `PASS` rows.
 
 - [ ] **Step 6: Check security advisors**
 
@@ -1642,7 +1748,7 @@ MCP `get_advisors` with `type: "security"`. Expected: no ERROR-level findings.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add supabase/migrations/0008_scheduling.sql supabase/tests/0008_scheduling_test.sql
+git add supabase/migrations/0009_scheduling.sql supabase/tests/0009_scheduling_test.sql
 git commit -m "feat(db): add scheduling tables, leave/attendance RPCs and available_slots"
 ```
 
@@ -1651,8 +1757,8 @@ git commit -m "feat(db): add scheduling tables, leave/attendance RPCs and availa
 ## Task 9: Chat — conversations and messages
 
 **Files:**
-- Create: `supabase/migrations/0009_chat.sql`
-- Create: `supabase/tests/0009_chat_test.sql`
+- Create: `supabase/migrations/0010_chat.sql`
+- Create: `supabase/tests/0010_chat_test.sql`
 
 **Interfaces:**
 - Consumes: `profiles` (Task 2); `chat_sender` (Task 1)
@@ -1660,7 +1766,7 @@ git commit -m "feat(db): add scheduling tables, leave/attendance RPCs and availa
 
 - [ ] **Step 1: Write the failing test**
 
-Create `supabase/tests/0009_chat_test.sql`:
+Create `supabase/tests/0010_chat_test.sql`:
 
 ```sql
 select case when count(*) = 2 then 'PASS' else 'FAIL: ' || count(*) || ' of 2 tables' end as status
@@ -1679,7 +1785,7 @@ Expected: `FAIL: 0 of 2 tables`, `FAIL: body column missing`.
 
 - [ ] **Step 3: Write the migration**
 
-Create `supabase/migrations/0009_chat.sql`:
+Create `supabase/migrations/0010_chat.sql`:
 
 ```sql
 create table public.chat_conversations (
@@ -1728,7 +1834,7 @@ MCP `apply_migration`, `name: "chat"`.
 
 - [ ] **Step 5: Run the test to verify it passes**
 
-Re-run `supabase/tests/0009_chat_test.sql`. Expected: two `PASS` rows.
+Re-run `supabase/tests/0010_chat_test.sql`. Expected: two `PASS` rows.
 
 - [ ] **Step 6: Check security advisors**
 
@@ -1737,7 +1843,7 @@ MCP `get_advisors` with `type: "security"`. Expected: no ERROR-level findings.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add supabase/migrations/0009_chat.sql supabase/tests/0009_chat_test.sql
+git add supabase/migrations/0010_chat.sql supabase/tests/0010_chat_test.sql
 git commit -m "feat(db): add chat conversations and messages"
 ```
 
@@ -1747,7 +1853,7 @@ git commit -m "feat(db): add chat conversations and messages"
 
 **Files:**
 - Create: `supabase/seed.sql`
-- Create: `supabase/tests/0010_seed_test.sql`
+- Create: `supabase/tests/0011_seed_test.sql`
 - Read for reference: `lib/shared/mock/fixtures/*.dart`, `lib/shared/mock/mock_ids.dart`
 
 **Interfaces:**
@@ -1763,7 +1869,7 @@ git commit -m "feat(db): add chat conversations and messages"
 
 - [ ] **Step 1: Write the failing test**
 
-Create `supabase/tests/0010_seed_test.sql`:
+Create `supabase/tests/0011_seed_test.sql`:
 
 ```sql
 select case when count(*) = 5 then 'PASS' else 'FAIL: ' || count(*) || ' of 5 demo users' end as status
@@ -1894,7 +2000,7 @@ MCP `execute_sql` with the file contents. Seed data is not schema, so it is **no
 
 - [ ] **Step 5: Run the test to verify it passes**
 
-Re-run `supabase/tests/0010_seed_test.sql`. Expected: three `PASS` rows.
+Re-run `supabase/tests/0011_seed_test.sql`. Expected: three `PASS` rows.
 
 - [ ] **Step 6: Verify a demo login actually works**
 
@@ -1910,7 +2016,7 @@ Expected: `PASS`. This proves the hash is in GoTrue's format, not merely that a 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add supabase/seed.sql supabase/tests/0010_seed_test.sql
+git add supabase/seed.sql supabase/tests/0011_seed_test.sql
 git commit -m "feat(db): seed clinics, demo accounts, availability and inventory"
 ```
 
@@ -1919,8 +2025,8 @@ git commit -m "feat(db): seed clinics, demo accounts, availability and inventory
 ## Task 11: Security verification — cross-tenant isolation and RPC behaviour
 
 **Files:**
-- Create: `supabase/tests/0011_rls_isolation_test.sql`
-- Create: `supabase/tests/0012_rpc_behaviour_test.sql`
+- Create: `supabase/tests/0012_rls_isolation_test.sql`
+- Create: `supabase/tests/0013_rpc_behaviour_test.sql`
 
 **Interfaces:**
 - Consumes: everything from Tasks 1–10
@@ -1931,7 +2037,7 @@ breach, so isolation is asserted, not assumed.
 
 - [ ] **Step 1: Write the isolation tests**
 
-Create `supabase/tests/0011_rls_isolation_test.sql`:
+Create `supabase/tests/0012_rls_isolation_test.sql`:
 
 ```sql
 -- Aisha must not see Daniel's medical row.
@@ -1992,6 +2098,38 @@ end;
 $$;
 rollback;
 
+-- A patient must not be able to promote themselves to doctor. This is the
+-- behavioural proof for the column grants added in Task 2 Step 8: without them
+-- this UPDATE succeeds and hands the patient staff-level read access.
+begin;
+select set_config('request.jwt.claims',
+  json_build_object('sub','44444444-4444-4444-4444-444444444441','role','authenticated')::text, true);
+set local role authenticated;
+do $$
+begin
+  update public.profiles set role = 'doctor' where id = auth.uid();
+  raise exception 'FAIL: role self-escalation succeeded';
+exception
+  when insufficient_privilege then raise notice 'PASS: role self-escalation refused';
+end;
+$$;
+rollback;
+
+-- A patient must not be able to move themselves into another clinic.
+begin;
+select set_config('request.jwt.claims',
+  json_build_object('sub','44444444-4444-4444-4444-444444444441','role','authenticated')::text, true);
+set local role authenticated;
+do $$
+begin
+  update public.profiles set clinic_id = '11111111-1111-1111-1111-111111111112' where id = auth.uid();
+  raise exception 'FAIL: clinic self-reassignment succeeded';
+exception
+  when insufficient_privilege then raise notice 'PASS: clinic self-reassignment refused';
+end;
+$$;
+rollback;
+
 -- Every table in public must have RLS enabled. Catches a table added later
 -- without a policy.
 select case when count(*) = 0 then 'PASS'
@@ -2008,7 +2146,7 @@ Any `FAIL` is a blocker. Fix the offending policy, re-apply, re-run — do not p
 
 - [ ] **Step 3: Write the RPC behaviour tests**
 
-Create `supabase/tests/0012_rpc_behaviour_test.sql`:
+Create `supabase/tests/0013_rpc_behaviour_test.sql`:
 
 ```sql
 -- available_slots returns 16 half-hour slots for a Wednesday (09:00-17:00).
@@ -2105,7 +2243,7 @@ the commit message rather than silently leaving them.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add supabase/tests/0011_rls_isolation_test.sql supabase/tests/0012_rpc_behaviour_test.sql
+git add supabase/tests/0012_rls_isolation_test.sql supabase/tests/0013_rpc_behaviour_test.sql
 git commit -m "test(db): assert cross-tenant isolation and RPC invariants"
 ```
 
