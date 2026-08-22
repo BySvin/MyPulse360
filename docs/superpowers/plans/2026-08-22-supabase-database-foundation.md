@@ -1973,13 +1973,148 @@ git add supabase/migrations/0011_scheduling.sql supabase/tests/0011_scheduling_t
 git commit -m "feat(db): add scheduling tables, leave/attendance RPCs and available_slots"
 ```
 
+- [ ] **Step 9: Scope staff unavailability and anchor the leave date comparison**
+
+Two findings from review of Step 3, both defects in this plan's own SQL.
+
+**(a) `staff_unavailability_read` is `using (true)`.** Any authenticated user —
+including a patient, and including staff at unrelated clinics — can read every
+staff member's unavailability rows, `reason` column included. That column is
+free text and may carry personal or medical detail. Every sibling table in
+`0011` scopes manager visibility to `auth_clinic()`; this one was the outlier.
+
+Tightening it does **not** hide leave-blocked days from patients: `available_slots`
+is `SECURITY DEFINER` and bypasses RLS, so slot generation still sees the rows.
+
+**(b) `decide_leave` compares `scheduled_at::date`.** That implicit cast resolves
+through the session's `TimeZone`, which is exactly the failure mode
+`available_slots` goes out of its way to avoid two functions earlier in the same
+file. An appointment near a leave-window boundary could be missed, or wrongly
+cancelled, if the session is ever non-UTC. Anchor it the same way.
+
+Create `supabase/tests/0012_scheduling_hardening_test.sql`:
+
+```sql
+-- staff_unavailability must not be world-readable.
+select case when count(*) = 0 then 'PASS' else 'FAIL: staff_unavailability_read is unscoped' end as status
+from pg_policies
+where schemaname = 'public' and tablename = 'staff_unavailability'
+  and policyname = 'staff_unavailability_read' and qual = 'true';
+
+-- ...but a staff member must still read their own rows.
+select case when count(*) = 1 then 'PASS' else 'FAIL: staff_unavailability_read missing' end as status
+from pg_policies
+where schemaname = 'public' and tablename = 'staff_unavailability'
+  and policyname = 'staff_unavailability_read' and qual like '%auth.uid()%';
+
+-- decide_leave must anchor its date comparison to UTC.
+select case when count(*) = 1 then 'PASS' else 'FAIL: decide_leave date cast not UTC-anchored' end as status
+from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public' and p.proname = 'decide_leave'
+  and pg_get_functiondef(p.oid) like '%at time zone ''UTC''%';
+```
+
+Run each assertion separately — expect three `FAIL`. Then create
+`supabase/migrations/0012_scheduling_hardening.sql`:
+
+```sql
+-- (a) Scope unavailability reads. `using (true)` exposed every staff member's
+-- leave reasons to every authenticated user, patients included. available_slots
+-- is SECURITY DEFINER and bypasses RLS, so slot generation is unaffected.
+drop policy if exists staff_unavailability_read on public.staff_unavailability;
+
+create policy staff_unavailability_read on public.staff_unavailability
+  for select to authenticated
+  using (
+    staff_id = auth.uid()
+    or (public.auth_role() = 'doctor'
+        and exists (select 1 from public.profiles p
+                     where p.id = public.staff_unavailability.staff_id
+                       and p.clinic_id = public.auth_clinic()))
+  );
+
+-- (b) Anchor the leave-window comparison to UTC, matching available_slots.
+-- `scheduled_at::date` resolved through the session TimeZone; an appointment
+-- near a window boundary could be missed or wrongly cancelled.
+create or replace function public.decide_leave(
+  p_request uuid, p_status public.leave_status
+)
+returns public.leave_requests
+language plpgsql volatile security definer set search_path = public, pg_temp as $$
+declare
+  v_row       public.leave_requests;
+  v_cancelled int := 0;
+begin
+  if public.auth_role() <> 'doctor' then
+    raise exception 'only doctors decide leave' using errcode = '42501';
+  end if;
+  if p_status = 'pending' then
+    raise exception 'decision must be approved or denied' using errcode = '22023';
+  end if;
+
+  update public.leave_requests
+     set status = p_status, decided_by = auth.uid(), decided_at = now()
+   where id = p_request
+   returning * into v_row;
+
+  if v_row.id is null then
+    raise exception 'leave request not found' using errcode = 'P0002';
+  end if;
+
+  if p_status = 'approved' then
+    update public.appointments
+       set status = 'cancelled'
+     where doctor_id = v_row.staff_id
+       and status <> 'cancelled'
+       and (scheduled_at at time zone 'UTC')::date
+           between v_row.start_date and v_row.end_date;
+
+    get diagnostics v_cancelled = row_count;
+  end if;
+
+  -- Notify the requester, matching the tested mock behaviour
+  -- ("decideLeave stamps who decided and notifies the requester").
+  insert into public.staff_notifications (staff_id, message)
+  values (v_row.staff_id,
+          'Your leave request for '
+          || to_char(v_row.start_date, 'DD Mon YYYY') || ' to '
+          || to_char(v_row.end_date, 'DD Mon YYYY')
+          || ' was ' || p_status::text
+          || case when p_status = 'approved'
+                  then '. ' || v_cancelled || ' appointment(s) were cancelled.'
+                  else '.' end);
+
+  return v_row;
+end;
+$$;
+```
+
+Apply as `apply_migration`, `name: "scheduling_hardening"`. Re-run the three
+assertions — expect three `PASS`. Re-run `get_advisors(type: "security")`.
+
+```bash
+git add supabase/migrations/0012_scheduling_hardening.sql supabase/tests/0012_scheduling_hardening_test.sql
+git commit -m "fix(db): scope staff unavailability reads and anchor leave dates to UTC"
+```
+
+> `create or replace function` preserves the existing ACL and the signature is
+> unchanged, so the revoke/grant pair does not need re-issuing — confirm it
+> survived rather than assuming.
+>
+> **Deferred, not fixed here:** review also noted `decide_leave` has no
+> `where status = 'pending'` guard, so re-deciding an already-decided request
+> inserts a second notification. Real but minor — the RPC is doctor-gated and the
+> cancellation update is idempotent. Adding the guard naively would make the
+> function report "leave request not found", which is misleading; it wants its own
+> error path. Left for a later pass rather than bundled into a security fix.
+
 ---
 
 ## Task 9: Chat — conversations and messages
 
 **Files:**
-- Create: `supabase/migrations/0012_chat.sql`
-- Create: `supabase/tests/0012_chat_test.sql`
+- Create: `supabase/migrations/0013_chat.sql`
+- Create: `supabase/tests/0013_chat_test.sql`
 
 **Interfaces:**
 - Consumes: `profiles` (Task 2); `chat_sender` (Task 1)
@@ -1987,7 +2122,7 @@ git commit -m "feat(db): add scheduling tables, leave/attendance RPCs and availa
 
 - [ ] **Step 1: Write the failing test**
 
-Create `supabase/tests/0012_chat_test.sql`:
+Create `supabase/tests/0013_chat_test.sql`:
 
 ```sql
 select case when count(*) = 2 then 'PASS' else 'FAIL: ' || count(*) || ' of 2 tables' end as status
@@ -2006,7 +2141,7 @@ Expected: `FAIL: 0 of 2 tables`, `FAIL: body column missing`.
 
 - [ ] **Step 3: Write the migration**
 
-Create `supabase/migrations/0012_chat.sql`:
+Create `supabase/migrations/0013_chat.sql`:
 
 ```sql
 create table public.chat_conversations (
@@ -2055,7 +2190,7 @@ MCP `apply_migration`, `name: "chat"`.
 
 - [ ] **Step 5: Run the test to verify it passes**
 
-Re-run `supabase/tests/0012_chat_test.sql`. Expected: two `PASS` rows.
+Re-run `supabase/tests/0013_chat_test.sql`. Expected: two `PASS` rows.
 
 - [ ] **Step 6: Check security advisors**
 
@@ -2064,7 +2199,7 @@ MCP `get_advisors` with `type: "security"`. Expected: no ERROR-level findings.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add supabase/migrations/0012_chat.sql supabase/tests/0012_chat_test.sql
+git add supabase/migrations/0013_chat.sql supabase/tests/0013_chat_test.sql
 git commit -m "feat(db): add chat conversations and messages"
 ```
 
@@ -2074,7 +2209,7 @@ git commit -m "feat(db): add chat conversations and messages"
 
 **Files:**
 - Create: `supabase/seed.sql`
-- Create: `supabase/tests/0013_seed_test.sql`
+- Create: `supabase/tests/0014_seed_test.sql`
 - Read for reference: `lib/shared/mock/fixtures/*.dart`, `lib/shared/mock/mock_ids.dart`
 
 **Interfaces:**
@@ -2090,7 +2225,7 @@ git commit -m "feat(db): add chat conversations and messages"
 
 - [ ] **Step 1: Write the failing test**
 
-Create `supabase/tests/0013_seed_test.sql`:
+Create `supabase/tests/0014_seed_test.sql`:
 
 ```sql
 select case when count(*) = 5 then 'PASS' else 'FAIL: ' || count(*) || ' of 5 demo users' end as status
@@ -2221,7 +2356,7 @@ MCP `execute_sql` with the file contents. Seed data is not schema, so it is **no
 
 - [ ] **Step 5: Run the test to verify it passes**
 
-Re-run `supabase/tests/0013_seed_test.sql`. Expected: three `PASS` rows.
+Re-run `supabase/tests/0014_seed_test.sql`. Expected: three `PASS` rows.
 
 - [ ] **Step 6: Verify a demo login actually works**
 
@@ -2237,7 +2372,7 @@ Expected: `PASS`. This proves the hash is in GoTrue's format, not merely that a 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add supabase/seed.sql supabase/tests/0013_seed_test.sql
+git add supabase/seed.sql supabase/tests/0014_seed_test.sql
 git commit -m "feat(db): seed clinics, demo accounts, availability and inventory"
 ```
 
@@ -2246,8 +2381,8 @@ git commit -m "feat(db): seed clinics, demo accounts, availability and inventory
 ## Task 11: Security verification — cross-tenant isolation and RPC behaviour
 
 **Files:**
-- Create: `supabase/tests/0014_rls_isolation_test.sql`
-- Create: `supabase/tests/0015_rpc_behaviour_test.sql`
+- Create: `supabase/tests/0015_rls_isolation_test.sql`
+- Create: `supabase/tests/0016_rpc_behaviour_test.sql`
 
 **Interfaces:**
 - Consumes: everything from Tasks 1–10
@@ -2258,7 +2393,7 @@ breach, so isolation is asserted, not assumed.
 
 - [ ] **Step 1: Write the isolation tests**
 
-Create `supabase/tests/0014_rls_isolation_test.sql`:
+Create `supabase/tests/0015_rls_isolation_test.sql`:
 
 ```sql
 -- Aisha must not see Daniel's medical row.
@@ -2367,7 +2502,7 @@ Any `FAIL` is a blocker. Fix the offending policy, re-apply, re-run — do not p
 
 - [ ] **Step 3: Write the RPC behaviour tests**
 
-Create `supabase/tests/0015_rpc_behaviour_test.sql`:
+Create `supabase/tests/0016_rpc_behaviour_test.sql`:
 
 ```sql
 -- available_slots returns 16 half-hour slots for a Wednesday (09:00-17:00).
@@ -2464,7 +2599,7 @@ the commit message rather than silently leaving them.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add supabase/tests/0014_rls_isolation_test.sql supabase/tests/0015_rpc_behaviour_test.sql
+git add supabase/tests/0015_rls_isolation_test.sql supabase/tests/0016_rpc_behaviour_test.sql
 git commit -m "test(db): assert cross-tenant isolation and RPC invariants"
 ```
 
