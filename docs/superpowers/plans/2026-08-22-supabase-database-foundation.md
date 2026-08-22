@@ -2391,6 +2391,77 @@ git commit -m "feat(db): seed clinics, demo accounts, availability and inventory
 This task is the reason the plan exists. An RLS bug in a health app is a data
 breach, so isolation is asserted, not assumed.
 
+- [ ] **Step 0: Revoke write privileges from `anon`**
+
+Spotted during Tasks 2 and 7 review and deliberately deferred to here, because a
+schema-wide revoke only covers the tables that exist — and all 27 now do.
+
+Supabase grants `anon` and `authenticated` ALL privileges on every table in
+`public` by default and relies on RLS to hold the line. For `anon` that works
+for SELECT/INSERT/UPDATE/DELETE: every policy in this schema is scoped
+`to authenticated`, so `anon` matches no policy and is denied.
+
+It does **not** work for `TRUNCATE`. Row security governs
+SELECT/INSERT/UPDATE/DELETE only — a role holding TRUNCATE can empty a table
+regardless of policy. Reachability is low (PostgREST never issues TRUNCATE, so
+the publishable key cannot trigger it), but the privilege has no business
+existing, and the asymmetry is a latent trap: a future policy written without a
+role clause would be exploitable by `anon` where the authenticated path is not.
+
+Create `supabase/migrations/0014_role_hardening.sql`:
+
+```sql
+-- anon is the role the publishable key maps to before login. It needs to read
+-- nothing here today and write nothing ever; RLS already denies it, this makes
+-- the grant match the intent.
+revoke insert, update, delete, truncate on all tables in schema public from anon;
+
+-- TRUNCATE is not governed by row security, so no client role should hold it.
+-- Note DELETE is deliberately NOT revoked from authenticated: goal_progress,
+-- chat_conversations and chat_messages all carry `for all` policies where
+-- deleting your own row is legitimate.
+revoke truncate on all tables in schema public from authenticated;
+
+-- Tables created later must not silently reacquire these.
+alter default privileges in schema public
+  revoke insert, update, delete, truncate on tables from anon;
+alter default privileges in schema public
+  revoke truncate on tables from authenticated;
+```
+
+Apply as `apply_migration`, `name: "role_hardening"`.
+
+**Then confirm nothing legitimate broke.** These assertions belong in
+`supabase/tests/0015_rls_isolation_test.sql` alongside the rest of Step 1:
+
+```sql
+-- anon must hold no write privilege on any table.
+select case when count(*) = 0 then 'PASS'
+            else 'FAIL: anon may write ' || string_agg(distinct table_name, ', ') end as status
+from information_schema.role_table_grants
+where table_schema = 'public' and grantee = 'anon'
+  and privilege_type in ('INSERT','UPDATE','DELETE','TRUNCATE');
+
+-- No client role may TRUNCATE, since RLS does not govern it.
+select case when count(*) = 0 then 'PASS'
+            else 'FAIL: authenticated may truncate ' || string_agg(distinct table_name, ', ') end as status
+from information_schema.role_table_grants
+where table_schema = 'public' and grantee = 'authenticated' and privilege_type = 'TRUNCATE';
+
+-- ...but the legitimate self-service deletes must survive. A patient owns their
+-- own progress logs and chat history.
+select case when count(*) = 3 then 'PASS'
+            else 'FAIL: only ' || count(*) || ' of 3 self-delete paths remain' end as status
+from information_schema.role_table_grants
+where table_schema = 'public' and grantee = 'authenticated' and privilege_type = 'DELETE'
+  and table_name in ('goal_progress','chat_conversations','chat_messages');
+```
+
+```bash
+git add supabase/migrations/0014_role_hardening.sql
+git commit -m "fix(db): revoke write and truncate privileges from anon"
+```
+
 - [ ] **Step 1: Write the isolation tests**
 
 Create `supabase/tests/0015_rls_isolation_test.sql`:
