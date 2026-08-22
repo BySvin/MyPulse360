@@ -321,10 +321,16 @@ inserts. The unique index is the final backstop — a concurrent booking raises
 (§7).
 
 **`apply_leave(p_start date, p_end date, p_reason text) returns leave_requests`**
-Files the request and, on approval, cancels appointments inside the window and
-writes `staff_notifications` for affected patients. Mirrors
-`apply_leave_usecase.dart`, which has existing test coverage that must continue
-to describe the same behaviour.
+Files the request. Approval (see `decide_leave`) cancels appointments inside the
+window. Mirrors `apply_leave_usecase.dart`, which has existing test coverage that
+must continue to describe the same behaviour.
+
+> **Corrected during planning.** An earlier draft of this section said approval
+> notifies *affected patients* via `staff_notifications`. That is wrong twice
+> over: the table is keyed `staff_id`, and the tested mock behaviour
+> ("decideLeave stamps who decided and notifies the requester") notifies the
+> **requesting staff member**. Patient-facing notification has no entity in the
+> Dart app and is out of scope.
 
 **`decide_leave(p_request uuid, p_status leave_status) returns leave_requests`**
 Doctor-only. Stamps `decided_by`/`decided_at` and triggers the cancellation path.

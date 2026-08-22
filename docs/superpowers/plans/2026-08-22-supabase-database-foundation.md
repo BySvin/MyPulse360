@@ -1504,8 +1504,8 @@ create or replace function public.decide_leave(
 returns public.leave_requests
 language plpgsql volatile security definer set search_path = public, pg_temp as $$
 declare
-  v_row public.leave_requests;
-  v_appt record;
+  v_row       public.leave_requests;
+  v_cancelled int := 0;
 begin
   if public.auth_role() <> 'doctor' then
     raise exception 'only doctors decide leave' using errcode = '42501';
@@ -1524,21 +1524,28 @@ begin
   end if;
 
   if p_status = 'approved' then
-    for v_appt in
-      select a.id, a.patient_id, a.scheduled_at
-      from public.appointments a
-      where a.doctor_id = v_row.staff_id
-        and a.status <> 'cancelled'
-        and a.scheduled_at::date between v_row.start_date and v_row.end_date
-    loop
-      update public.appointments set status = 'cancelled' where id = v_appt.id;
+    update public.appointments
+       set status = 'cancelled'
+     where doctor_id = v_row.staff_id
+       and status <> 'cancelled'
+       and scheduled_at::date between v_row.start_date and v_row.end_date;
 
-      insert into public.staff_notifications (staff_id, message)
-      values (v_appt.patient_id,
-              'Your appointment on ' || to_char(v_appt.scheduled_at, 'DD Mon YYYY at HH24:MI')
-              || ' was cancelled because the doctor is on leave.');
-    end loop;
+    get diagnostics v_cancelled = row_count;
   end if;
+
+  -- Notify the requester, matching the tested mock behaviour
+  -- ("decideLeave stamps who decided and notifies the requester").
+  -- staff_notifications is keyed by staff_id; patient-facing notification is
+  -- a separate concern with no entity in the app yet, so it is not done here.
+  insert into public.staff_notifications (staff_id, message)
+  values (v_row.staff_id,
+          'Your leave request for '
+          || to_char(v_row.start_date, 'DD Mon YYYY') || ' to '
+          || to_char(v_row.end_date, 'DD Mon YYYY')
+          || ' was ' || p_status::text
+          || case when p_status = 'approved'
+                  then '. ' || v_cancelled || ' appointment(s) were cancelled.'
+                  else '.' end);
 
   return v_row;
 end;
