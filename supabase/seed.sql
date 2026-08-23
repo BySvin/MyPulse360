@@ -94,3 +94,40 @@ insert into public.inventory_batches
   ('55555555-5555-5555-5555-555555555551','MET-2025-B',300,300,'2027-11-30',0.12,'2026-07-15','66666666-6666-6666-6666-666666666661'),
   ('55555555-5555-5555-5555-555555555552','AMX-2026-A',80,150,'2027-01-31',0.31,'2026-05-20','66666666-6666-6666-6666-666666666661')
 on conflict (item_id, batch_number) do nothing;
+
+-- Rows owned by the OTHER patient (Daniel), so the cross-tenant assertions in
+-- 0015_rls_isolation_test.sql actually exercise RLS. Without these they pass
+-- trivially. Dates are chosen not to collide with the RPC behaviour tests,
+-- which use 2026-08-26 10:30 and 2026-08-27 09:00.
+insert into public.appointments
+  (id, patient_id, doctor_id, clinic_id, scheduled_at, appointment_type, status)
+values ('77777777-7777-7777-7777-777777777771',
+        '44444444-4444-4444-4444-444444444442',
+        '22222222-2222-2222-2222-222222222221',
+        '11111111-1111-1111-1111-111111111111',
+        timestamptz '2026-09-02 09:00+00', 'Diabetes Follow-up', 'scheduled')
+on conflict (id) do nothing;
+
+insert into public.health_metrics (id, patient_id, type, value, measured_at)
+values ('77777777-7777-7777-7777-777777777772',
+        '44444444-4444-4444-4444-444444444442', 'blood_sugar', 7.4,
+        timestamptz '2026-08-20 08:00+00')
+on conflict (id) do nothing;
+
+insert into public.wellness_goals
+  (id, patient_id, type, name, target_value, current_value, unit, status, target_date)
+values ('77777777-7777-7777-7777-777777777773',
+        '44444444-4444-4444-4444-444444444442', 'exercise', 'Walk 8000 steps',
+        8000, 5200, 'steps', 'at_risk', date '2026-12-31')
+on conflict (id) do nothing;
+
+insert into public.chat_conversations (id, patient_id)
+values ('77777777-7777-7777-7777-777777777774',
+        '44444444-4444-4444-4444-444444444442')
+on conflict (id) do nothing;
+
+insert into public.chat_messages (id, conversation_id, sender, body, sent_at)
+values ('77777777-7777-7777-7777-777777777775',
+        '77777777-7777-7777-7777-777777777774', 'user',
+        'Is my blood sugar reading normal?', timestamptz '2026-08-20 08:05+00')
+on conflict (id) do nothing;

@@ -115,3 +115,20 @@ select case when count(*) = 0 then 'PASS'
             else 'FAIL: ' || string_agg(relname, ', ') || ' lack RLS' end as status
 from pg_class c join pg_namespace n on n.oid = c.relnamespace
 where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity;
+
+-- Daniel must see exactly the rows Aisha cannot. This is the counter-check
+-- that proves the two assertions above are not vacuous: without the seed rows
+-- appended in supabase/seed.sql (Step 7), "Aisha sees zero of Daniel's rows"
+-- would pass whether or not RLS is even enabled, because Daniel would own no
+-- such rows to leak. This block confirms the rows genuinely exist and are
+-- visible to their owner.
+begin;
+select set_config('request.jwt.claims',
+  json_build_object('sub','44444444-4444-4444-4444-444444444442','role','authenticated')::text, true);
+set local role authenticated;
+select case when (select count(*) from public.appointments) = 1
+             and (select count(*) from public.health_metrics) = 1
+             and (select count(*) from public.wellness_goals) = 1
+             and (select count(*) from public.chat_conversations) = 1
+        then 'PASS' else 'FAIL: owner cannot see their own seeded rows' end as status;
+rollback;
