@@ -3,11 +3,12 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'app_colors.dart';
 
-/// Type system: Inter for UI text, IBM Plex Mono for small data-readout
-/// labels (§2.3).
+/// Type system: Figtree for UI text — humanist, tall x-height, holds up
+/// under Dynamic Type — and IBM Plex Mono for small data readouts (queue
+/// numbers, dosages, timestamps) where digits must stay unambiguous.
 abstract final class AppTypography {
   static TextTheme textTheme(Color primaryText, Color secondaryText) {
-    final base = GoogleFonts.interTextTheme();
+    final base = GoogleFonts.figtreeTextTheme();
     return base
         .copyWith(
           displayLarge: base.displayLarge?.copyWith(
