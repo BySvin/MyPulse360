@@ -92,7 +92,53 @@ class SupabaseAuthDataSource implements AuthDataSource {
     required String password,
     required String fullName,
   }) async {
-    throw UnimplementedError('Sign-up lands in Task 7');
+    try {
+      final response = await _client.auth.signUp(
+        email: email.trim(),
+        password: password,
+      );
+      final id = response.user?.id;
+      if (id == null) {
+        throw const DbFailure('Could not create that account. Please try again.');
+      }
+
+      // Self-service registration is always a patient. The role is written
+      // here rather than accepted from the caller, and RLS will not let this
+      // row name any other role for its own id.
+      await _client.from('profiles').insert({
+        'id': id,
+        'email': email.trim(),
+        'full_name': fullName.trim(),
+        'role': userRoleToDb(UserRole.patient),
+        'clinic_id': await _defaultClinicId(),
+      });
+
+      await _client.from('patient_profiles').insert({
+        'id': id,
+        'height_cm': 0,
+        'weight_kg': 0,
+      });
+
+      // assigned_doctor_id is not client-writable, so the server picks.
+      await _client.rpc('assign_default_doctor', params: {'p_patient': id});
+
+      return _profileFor(id);
+    } on DbFailure {
+      rethrow;
+    } catch (e) {
+      throw mapPostgrestError(e);
+    }
+  }
+
+  /// The clinic a self-service sign-up joins. One clinic is the common case;
+  /// picking the first by name keeps it deterministic until the app offers a
+  /// chooser.
+  Future<String> _defaultClinicId() async {
+    final row = await _client.from('clinics').select('id').order('name').limit(1).maybeSingle();
+    if (row == null) {
+      throw const DbFailure('No clinic is configured. Contact support.');
+    }
+    return row['id'] as String;
   }
 
   @override
@@ -123,7 +169,17 @@ class SupabaseAuthDataSource implements AuthDataSource {
     required String userId,
     required String newPassword,
   }) async {
-    throw UnimplementedError('Password change lands in Task 7');
+    try {
+      await _client.auth.updateUser(UserAttributes(password: newPassword));
+      // Clearing the flag is what releases the router's forced-change gate.
+      await _client
+          .from('profiles')
+          .update({'must_change_password': false}).eq('id', userId);
+    } on DbFailure {
+      rethrow;
+    } catch (e) {
+      throw mapPostgrestError(e);
+    }
   }
 
   @override
