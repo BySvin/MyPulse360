@@ -3,9 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../../../../config/constants/hive_boxes.dart';
+import '../../../../config/env/env.dart';
+import '../../../../shared/data/supabase_providers.dart';
 import '../../../../shared/mock/mock_database.dart';
 import '../../data/datasources/auth_datasource.dart';
 import '../../data/datasources/mock_auth_datasource.dart';
+import '../../data/datasources/supabase_auth_datasource.dart';
 import '../../data/repositories/auth_repository_impl.dart';
 import '../../domain/entities/app_user.dart';
 import '../../domain/repositories/auth_repository.dart';
@@ -16,7 +19,9 @@ import '../../domain/usecases/sign_up_usecase.dart';
 import '../state/auth_state.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
-  final AuthDataSource dataSource = MockAuthDataSource(ref.watch(mockDatabaseProvider));
+  final AuthDataSource dataSource = Env.isMockMode
+      ? MockAuthDataSource(ref.watch(mockDatabaseProvider))
+      : SupabaseAuthDataSource(ref.watch(supabaseClientProvider));
   return AuthRepositoryImpl(dataSource);
 });
 
