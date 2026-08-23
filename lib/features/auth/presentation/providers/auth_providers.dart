@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 
 import '../../../../config/constants/hive_boxes.dart';
 import '../../../../config/env/env.dart';
@@ -53,9 +54,31 @@ class AuthController extends Notifier<AuthState> {
 
   @override
   AuthState build() {
-    // Session restore becomes async in Task 9. Until then, start
-    // unauthenticated and let the login screen drive.
-    return const AuthUnauthenticated();
+    if (Env.isMockMode) {
+      final storedId = _box.get(HiveBoxes.keyCurrentUserId) as String?;
+      if (storedId == null) return const AuthUnauthenticated();
+      // Mock lookups are in-memory, so this future completes synchronously
+      // enough that the splash screen never appears.
+      _restore(storedId);
+      return const AuthLoading();
+    }
+
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session == null) return const AuthUnauthenticated();
+    _restore(session.user.id);
+    return const AuthLoading();
+  }
+
+  /// Fetches the profile behind an already-valid session. A failure here
+  /// means the session is good but the profile is not readable, which is a
+  /// real error rather than a reason to show the login screen.
+  Future<void> _restore(String userId) async {
+    try {
+      final user = await ref.read(authRepositoryProvider).getUserById(userId);
+      state = user == null ? const AuthUnauthenticated() : AuthAuthenticated(user);
+    } catch (e) {
+      state = AuthError(e.toString());
+    }
   }
 
   Future<void> login({required String email, required String password}) async {
@@ -66,7 +89,9 @@ class AuthController extends Notifier<AuthState> {
         password: password,
         isWebPlatform: ref.read(isWebPlatformProvider),
       );
-      await _box.put(HiveBoxes.keyCurrentUserId, user.id);
+      if (Env.isMockMode) {
+        await _box.put(HiveBoxes.keyCurrentUserId, user.id);
+      }
       state = AuthAuthenticated(user);
     } catch (e) {
       state = AuthError(e.toString());
@@ -85,7 +110,9 @@ class AuthController extends Notifier<AuthState> {
         password: password,
         fullName: fullName,
       );
-      await _box.put(HiveBoxes.keyCurrentUserId, user.id);
+      if (Env.isMockMode) {
+        await _box.put(HiveBoxes.keyCurrentUserId, user.id);
+      }
       state = AuthAuthenticated(user);
     } catch (e) {
       state = AuthError(e.toString());
@@ -109,7 +136,9 @@ class AuthController extends Notifier<AuthState> {
 
   Future<void> logout() async {
     await LogoutUseCase(ref.read(authRepositoryProvider)).call();
-    await _box.delete(HiveBoxes.keyCurrentUserId);
+    if (Env.isMockMode) {
+      await _box.delete(HiveBoxes.keyCurrentUserId);
+    }
     state = const AuthUnauthenticated();
   }
 }

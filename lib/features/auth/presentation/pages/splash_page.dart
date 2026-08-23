@@ -21,11 +21,24 @@ class _SplashPageState extends ConsumerState<SplashPage> {
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(milliseconds: 900), _navigateNext);
+    _navigateNext();
   }
 
-  void _navigateNext() {
+  Future<void> _navigateNext() async {
+    // Minimum time the brand screen stays up, so it reads as intentional
+    // rather than a flicker.
+    await Future.delayed(const Duration(milliseconds: 900));
+
+    // The session restore may still be running. Waiting for it is the whole
+    // point: treating "not yet authenticated" as "not signed in" is what
+    // sends an already-signed-in user to the login screen. A short poll is
+    // deliberate here — the window is sub-second, and a listener subscription
+    // in initState needs disposal handling this does not otherwise need.
+    while (mounted && ref.read(authControllerProvider) is AuthLoading) {
+      await Future.delayed(const Duration(milliseconds: 50));
+    }
     if (!mounted) return;
+
     final authState = ref.read(authControllerProvider);
     if (authState is! AuthAuthenticated) {
       context.go(RoutePaths.login);

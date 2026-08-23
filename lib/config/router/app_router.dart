@@ -57,9 +57,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     refreshListenable: refresh,
     redirect: (context, state) {
       final loc = state.matchedLocation;
+      final authState = ref.read(authControllerProvider);
+
+      // A session restore is in flight. Hold on the splash screen rather than
+      // flashing the login page at someone who is already signed in.
+      if (authState is AuthLoading) {
+        return loc == RoutePaths.splash ? null : RoutePaths.splash;
+      }
+
       if (loc == RoutePaths.splash) return null;
 
-      final authState = ref.read(authControllerProvider);
       final isAuthRoute = loc == RoutePaths.login || loc == RoutePaths.signUp;
 
       if (authState is! AuthAuthenticated) {
