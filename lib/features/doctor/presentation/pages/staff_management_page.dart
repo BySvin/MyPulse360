@@ -24,44 +24,46 @@ class StaffManagementPage extends ConsumerWidget {
     final currentUser = ref.watch(currentUserProvider);
     if (currentUser == null) return const SizedBox.shrink();
 
-    final staff = ref.watch(staffAccountsProvider);
-
     return Scaffold(
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+        child: ref.watch(staffAccountsProvider).when(
+              data: (staff) => ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Staff', style: Theme.of(context).textTheme.headlineSmall),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Doctor and pharmacist accounts for this clinic.',
-                        style: TextStyle(fontSize: 12.5, color: colors.textSecondary),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Staff', style: Theme.of(context).textTheme.headlineSmall),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Doctor and pharmacist accounts for this clinic.',
+                              style: TextStyle(fontSize: 12.5, color: colors.textSecondary),
+                            ),
+                          ],
+                        ),
+                      ),
+                      FilledButton.icon(
+                        onPressed: () => showAddStaffSheet(context, ref, currentUser.clinicId),
+                        style: FilledButton.styleFrom(backgroundColor: colors.clinicianAccent),
+                        icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+                        label: const Text('Add Staff'),
                       ),
                     ],
                   ),
-                ),
-                FilledButton.icon(
-                  onPressed: () => showAddStaffSheet(context, ref, currentUser.clinicId),
-                  style: FilledButton.styleFrom(backgroundColor: colors.clinicianAccent),
-                  icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
-                  label: const Text('Add Staff'),
-                ),
-              ],
+                  const SizedBox(height: 20),
+                  for (final staffUser in staff) ...[
+                    _StaffRow(user: staffUser, isSelf: staffUser.id == currentUser.id),
+                    const SizedBox(height: 10),
+                  ],
+                ],
+              ),
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(child: Text(e.toString())),
             ),
-            const SizedBox(height: 20),
-            for (final staffUser in staff) ...[
-              _StaffRow(user: staffUser, isSelf: staffUser.id == currentUser.id),
-              const SizedBox(height: 10),
-            ],
-          ],
-        ),
       ),
     );
   }

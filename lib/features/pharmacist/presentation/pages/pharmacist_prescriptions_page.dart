@@ -55,7 +55,7 @@ class _AwaitingRxTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
-    final patient = ref.watch(authRepositoryProvider).getUserById(consultation.patientId);
+    final patient = ref.watch(userProfileProvider(consultation.patientId)).valueOrNull;
     final appointments = ref.watch(patientAppointmentsProvider(consultation.patientId));
     DateTime? scheduledAt;
     for (final a in appointments) {

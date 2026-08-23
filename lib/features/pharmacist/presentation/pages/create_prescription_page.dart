@@ -61,7 +61,7 @@ class _CreatePrescriptionPageState extends ConsumerState<CreatePrescriptionPage>
       return const Scaffold(body: Center(child: Text('Consultation not found')));
     }
     final consultation = matches.first;
-    final patient = ref.watch(authRepositoryProvider).getUserById(consultation.patientId);
+    final patient = ref.watch(userProfileProvider(consultation.patientId)).valueOrNull;
     final profile = ref.watch(patientProfileProvider(consultation.patientId));
 
     final allMedNames = <String>{

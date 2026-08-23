@@ -43,7 +43,7 @@ class DashboardPage extends ConsumerWidget {
     final nextAppointment = ref.watch(nextUpcomingAppointmentProvider(user.id));
     final doctor = nextAppointment == null
         ? null
-        : ref.watch(authRepositoryProvider).getUserById(nextAppointment.doctorId);
+        : ref.watch(userProfileProvider(nextAppointment.doctorId)).valueOrNull;
     final now = DateTime.now();
     final greeting = now.hour < 12 ? 'Good morning' : (now.hour < 18 ? 'Good afternoon' : 'Good evening');
     final firstName = user.fullName.split(' ').first;

@@ -122,8 +122,12 @@ class MockAuthDataSource implements AuthDataSource {
   }
 
   @override
-  List<AppUser> getStaffAccounts() => _db.users.where((u) => u.role != UserRole.patient).toList();
+  Future<List<AppUser>> getStaffAccounts() async =>
+      _db.users.where((u) => u.role != UserRole.patient).toList();
 
   @override
-  AppUser? getUserById(String id) => _db.userById(id);
+  Future<AppUser?> getUserById(String id) async => _db.userById(id);
+
+  @override
+  Future<void> logout() async {}
 }

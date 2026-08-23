@@ -37,9 +37,9 @@ abstract class AuthRepository {
   Future<void> changePassword({required String userId, required String newPassword});
 
   /// Doctor/pharmacist accounts only — backs the staff management screen.
-  List<AppUser> getStaffAccounts();
+  Future<List<AppUser>> getStaffAccounts();
 
   Future<void> logout();
 
-  AppUser? getUserById(String id);
+  Future<AppUser?> getUserById(String id);
 }

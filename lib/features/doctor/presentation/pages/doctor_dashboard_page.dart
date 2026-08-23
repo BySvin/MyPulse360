@@ -236,7 +236,7 @@ class _DoctorQueueRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
-    final patient = ref.watch(authRepositoryProvider).getUserById(appointment.patientId);
+    final patient = ref.watch(userProfileProvider(appointment.patientId)).valueOrNull;
     final PatientProfile? profile = ref.watch(patientProfileProvider(appointment.patientId));
     final name = patient?.fullName ?? 'Patient';
     final status = QueueStatus.forAppointment(appointment);

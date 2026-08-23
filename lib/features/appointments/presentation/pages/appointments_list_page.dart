@@ -134,7 +134,7 @@ class _AppointmentTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final doctor = ref.watch(authRepositoryProvider).getUserById(appointment.doctorId);
+    final doctor = ref.watch(userProfileProvider(appointment.doctorId)).valueOrNull;
     return AppointmentCard(
       appointment: appointment,
       doctorName: doctor?.fullName ?? 'Doctor',

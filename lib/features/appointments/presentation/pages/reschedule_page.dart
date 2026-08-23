@@ -49,7 +49,7 @@ class _ReschedulePageState extends ConsumerState<ReschedulePage> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final doctor = ref.watch(authRepositoryProvider).getUserById(widget.appointment.doctorId);
+    final doctor = ref.watch(userProfileProvider(widget.appointment.doctorId)).valueOrNull;
     final slots = ref
         .watch(availableSlotsProvider((doctorId: widget.appointment.doctorId, date: _selectedDate)))
         .map((s) {

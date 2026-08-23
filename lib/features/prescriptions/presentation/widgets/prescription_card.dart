@@ -27,7 +27,7 @@ class PrescriptionCard extends ConsumerWidget {
     final isScanned = prescription.source == PrescriptionSource.scannedExternal;
     final prescriberName = isScanned
         ? (prescription.externalDoctorName ?? 'Unknown prescriber')
-        : ref.watch(authRepositoryProvider).getUserById(prescription.doctorId)?.fullName;
+        : ref.watch(userProfileProvider(prescription.doctorId)).valueOrNull?.fullName;
 
     return AppCard(
       child: Column(

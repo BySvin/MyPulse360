@@ -69,7 +69,7 @@ class _PatientHistoryPageState extends ConsumerState<PatientHistoryPage> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final doctor = ref.watch(currentUserProvider);
-    final patient = ref.watch(authRepositoryProvider).getUserById(widget.patientId);
+    final patient = ref.watch(userProfileProvider(widget.patientId)).valueOrNull;
     final profile = ref.watch(patientProfileProvider(widget.patientId));
     final consultations = ref.watch(patientHistoryProvider(widget.patientId));
     final prescriptions = ref.watch(patientPrescriptionsProvider(widget.patientId));

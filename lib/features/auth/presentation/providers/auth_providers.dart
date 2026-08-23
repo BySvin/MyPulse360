@@ -33,15 +33,24 @@ final currentUserProvider = Provider<AppUser?>((ref) {
   return state is AuthAuthenticated ? state.user : null;
 });
 
+/// One profile, by id. Widgets that show a doctor's or patient's name read
+/// this instead of calling the repository, because that call is a network
+/// round trip now and a `build()` cannot await.
+///
+/// Not auto-disposed: the same handful of ids are read across many screens,
+/// and re-fetching a name on every navigation is wasted latency.
+final userProfileProvider = FutureProvider.family<AppUser?, String>((ref, id) {
+  return ref.watch(authRepositoryProvider).getUserById(id);
+});
+
 class AuthController extends Notifier<AuthState> {
   Box get _box => Hive.box(HiveBoxes.settings);
 
   @override
   AuthState build() {
-    final storedId = _box.get(HiveBoxes.keyCurrentUserId) as String?;
-    if (storedId == null) return const AuthUnauthenticated();
-    final user = ref.read(authRepositoryProvider).getUserById(storedId);
-    return user != null ? AuthAuthenticated(user) : const AuthUnauthenticated();
+    // Session restore becomes async in Task 9. Until then, start
+    // unauthenticated and let the login screen drive.
+    return const AuthUnauthenticated();
   }
 
   Future<void> login({required String email, required String password}) async {
@@ -87,7 +96,7 @@ class AuthController extends Notifier<AuthState> {
     try {
       final repository = ref.read(authRepositoryProvider);
       await ChangePasswordUseCase(repository).call(userId: current.user.id, newPassword: newPassword);
-      state = AuthAuthenticated(repository.getUserById(current.user.id)!);
+      state = AuthAuthenticated((await repository.getUserById(current.user.id))!);
     } catch (e) {
       state = AuthError(e.toString());
     }

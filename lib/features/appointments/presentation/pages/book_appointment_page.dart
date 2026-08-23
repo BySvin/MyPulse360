@@ -78,7 +78,7 @@ class _BookAppointmentPageState extends ConsumerState<BookAppointmentPage> {
     if (user == null) return const SizedBox.shrink();
     final profile = ref.watch(patientProfileProvider(user.id));
     final doctorId = profile?.assignedDoctorId ?? 'user-dr-ahmed';
-    final doctor = ref.watch(authRepositoryProvider).getUserById(doctorId);
+    final doctor = ref.watch(userProfileProvider(doctorId)).valueOrNull;
     final clinics = ref.watch(mockDatabaseProvider).clinics;
     final clinicName = clinics.isEmpty ? 'MyPulse360 Clinic' : clinics.first.name;
 

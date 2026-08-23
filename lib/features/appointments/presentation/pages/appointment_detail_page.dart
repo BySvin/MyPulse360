@@ -45,7 +45,7 @@ class AppointmentDetailPage extends ConsumerWidget {
       return const Scaffold(body: Center(child: Text('Appointment not found')));
     }
     final appointment = matches.first;
-    final doctor = ref.watch(authRepositoryProvider).getUserById(appointment.doctorId);
+    final doctor = ref.watch(userProfileProvider(appointment.doctorId)).valueOrNull;
     final doctorProfile = ref.watch(doctorProfileProvider(appointment.doctorId));
     final clinics = ref.watch(mockDatabaseProvider).clinics;
     final matchingClinics = clinics.where((c) => c.id == appointment.clinicId);

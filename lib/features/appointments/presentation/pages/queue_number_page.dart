@@ -74,7 +74,7 @@ class _QueueNumberPageState extends ConsumerState<QueueNumberPage> {
     }
 
     final appointment = todaysMatches.first;
-    final doctor = ref.watch(authRepositoryProvider).getUserById(appointment.doctorId);
+    final doctor = ref.watch(userProfileProvider(appointment.doctorId)).valueOrNull;
     final queue = ref.watch(todaysQueueProvider(appointment.doctorId));
     final position = queue.indexWhere((a) => a.id == appointment.id);
     final peopleAhead = position < 0 ? 0 : position;

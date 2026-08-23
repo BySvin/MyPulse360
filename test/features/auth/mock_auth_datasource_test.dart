@@ -134,7 +134,7 @@ void main() {
 
       await dataSource.changePassword(userId: pharmacist.id, newPassword: 'BrandNew1!');
 
-      expect(dataSource.getUserById(pharmacist.id)!.mustChangePassword, isFalse);
+      expect((await dataSource.getUserById(pharmacist.id))!.mustChangePassword, isFalse);
 
       expect(
         () => dataSource.login(email: pharmacist.email, password: 'Passw0rd1!', isWebPlatform: true),
@@ -160,10 +160,10 @@ void main() {
       );
 
       await dataSource.setAccountActive(userId: pharmacist.id, isActive: false);
-      expect(dataSource.getUserById(pharmacist.id)!.isActive, isFalse);
+      expect((await dataSource.getUserById(pharmacist.id))!.isActive, isFalse);
 
       await dataSource.setAccountActive(userId: pharmacist.id, isActive: true);
-      expect(dataSource.getUserById(pharmacist.id)!.isActive, isTrue);
+      expect((await dataSource.getUserById(pharmacist.id))!.isActive, isTrue);
     });
   });
 }
