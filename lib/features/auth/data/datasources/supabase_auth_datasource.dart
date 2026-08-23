@@ -54,7 +54,16 @@ class SupabaseAuthDataSource implements AuthDataSource {
         throw const DbFailure('That email and password do not match.');
       }
 
-      final user = await _profileFor(id);
+      // signInWithPassword has already established a session. Any refusal from
+      // here on must tear it down, or a login the user saw fail leaves usable
+      // credentials behind.
+      final AppUser user;
+      try {
+        user = await _profileFor(id);
+      } catch (_) {
+        await _client.auth.signOut();
+        rethrow;
+      }
 
       // Same two refusals the mock enforces: a deactivated account cannot
       // sign in even with the right password, and staff sign in through the
@@ -132,7 +141,13 @@ class SupabaseAuthDataSource implements AuthDataSource {
   }
 
   @override
-  Future<void> logout() async => _client.auth.signOut();
+  Future<void> logout() async {
+    try {
+      await _client.auth.signOut();
+    } catch (e) {
+      throw mapPostgrestError(e);
+    }
+  }
 
   @override
   Future<AppUser?> getUserById(String id) async {
