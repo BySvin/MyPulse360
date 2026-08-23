@@ -132,3 +132,65 @@ select case when (select count(*) from public.appointments) = 1
              and (select count(*) from public.chat_conversations) = 1
         then 'PASS' else 'FAIL: owner cannot see their own seeded rows' end as status;
 rollback;
+
+-- A patient must not be able to rewrite the medications on a prescription
+-- their doctor issued. This is the finding the whole-branch review caught.
+--
+-- NOTE: this is deliberately NOT a plain SELECT count over prescription_items
+-- joined to prescriptions where source = 'in_app'. That was the brief's first
+-- draft, and it does not detect the bug: SELECT visibility on
+-- prescription_items is governed by prescription_items_read, which delegates
+-- to prescriptions_read (patient_id = auth.uid() OR doctor_id = auth.uid() OR
+-- pharmacist-in-clinic) via its own subquery. A patient legitimately reading
+-- their own doctor-issued prescription is not a bug, so that count is
+-- non-zero (or vacuously zero with no fixture data) whether or not the write
+-- policy is fixed -- verified empirically against the live project both
+-- before and after 0015_final_hardening.sql, it read PASS in both states.
+-- The actual defect is a write hole, so this proves it with a real UPDATE
+-- attempt: seed a doctor-issued item as postgres (RLS-exempt table owner),
+-- then try to rewrite it as the patient. Before the fix, prescription_items_
+-- write's unqualified `pr.patient_id = auth.uid()` branch lets the UPDATE
+-- through; after the fix, prescription_items_write_scanned requires
+-- `pr.source = 'scanned_external'`, which an in-app prescription never has,
+-- so the UPDATE's RLS-filtered WHERE matches zero rows and the medication
+-- name is left untouched.
+begin;
+set local role postgres;
+insert into public.prescriptions (id, patient_id, doctor_id, issued_date, expiry_date, source)
+values ('99999999-9999-9999-9999-999999999991', '44444444-4444-4444-4444-444444444441',
+        '22222222-2222-2222-2222-222222222221', current_date, current_date + 30, 'in_app');
+insert into public.prescription_items
+  (id, prescription_id, medication_name, strength, form, quantity, unit, frequency, duration_days, instructions)
+values ('99999999-9999-9999-9999-999999999992', '99999999-9999-9999-9999-999999999991',
+        'Amoxicillin', '500mg', 'tablet', 21, 'tablet', 'TID', 7, 'Take with food');
+select set_config('request.jwt.claims',
+  json_build_object('sub','44444444-4444-4444-4444-444444444441','role','authenticated')::text, true);
+set local role authenticated;
+update public.prescription_items
+   set medication_name = 'Forged medication'
+ where id = '99999999-9999-9999-9999-999999999992';
+select case when (select medication_name from public.prescription_items
+                    where id = '99999999-9999-9999-9999-999999999992') = 'Amoxicillin'
+            then 'PASS'
+            else 'FAIL: patient rewrote a doctor-issued item to '''
+                 || (select medication_name from public.prescription_items
+                      where id = '99999999-9999-9999-9999-999999999992') || ''''
+       end as status;
+rollback;
+
+-- Clinical records must not be client-deletable.
+select case when count(*) = 0 then 'PASS'
+            else 'FAIL: DELETE reachable on ' || string_agg(distinct tablename, ', ') end as status
+from pg_policies
+where schemaname = 'public' and cmd = 'ALL'
+  and tablename in ('consultations','prescriptions','health_metrics',
+                    'inventory_items','inventory_batches');
+
+-- chat_messages needs its own cross-tenant assertion, not just its parent's.
+begin;
+select set_config('request.jwt.claims',
+  json_build_object('sub','44444444-4444-4444-4444-444444444441','role','authenticated')::text, true);
+set local role authenticated;
+select case when count(*) = 0 then 'PASS' else 'FAIL: chat_messages leaked ' || count(*) end as status
+from public.chat_messages;
+rollback;

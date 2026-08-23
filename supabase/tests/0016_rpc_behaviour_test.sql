@@ -1,10 +1,15 @@
 -- available_slots returns 16 half-hour slots for a Wednesday (09:00-17:00).
+-- The date is derived from current_date rather than hardcoded: a stable
+-- future Wednesday at least a week out, so the suite never goes stale (see
+-- finding 8 -- the old hardcoded 2026-08-26/27 expire once book_appointment's
+-- `not s.is_past` check starts rejecting them, on 2026-08-28).
 begin;
 select set_config('request.jwt.claims',
   json_build_object('sub','44444444-4444-4444-4444-444444444441','role','authenticated')::text, true);
 set local role authenticated;
 select case when count(*) = 16 then 'PASS' else 'FAIL: ' || count(*) || ' slots' end as status
-from public.available_slots('22222222-2222-2222-2222-222222222221'::uuid, date '2026-08-26');
+from public.available_slots('22222222-2222-2222-2222-222222222221'::uuid,
+                             (date_trunc('week', current_date) + interval '1 week 2 days')::date);
 rollback;
 
 -- Booking the same slot twice: the second attempt is refused.
@@ -13,11 +18,13 @@ select set_config('request.jwt.claims',
   json_build_object('sub','44444444-4444-4444-4444-444444444441','role','authenticated')::text, true);
 set local role authenticated;
 select public.book_appointment('22222222-2222-2222-2222-222222222221'::uuid,
-                               timestamptz '2026-08-26 10:30+00', 'General checkup', null);
+                               ((date_trunc('week', current_date) + interval '1 week 2 days')::date + time '10:30') at time zone 'UTC',
+                               'General checkup', null);
 do $$
 begin
   perform public.book_appointment('22222222-2222-2222-2222-222222222221'::uuid,
-                                  timestamptz '2026-08-26 10:30+00', 'General checkup', null);
+                                  ((date_trunc('week', current_date) + interval '1 week 2 days')::date + time '10:30') at time zone 'UTC',
+                                  'General checkup', null);
   raise exception 'FAIL: double booking succeeded';
 exception
   when unique_violation then raise notice 'PASS: double booking refused';
@@ -31,18 +38,22 @@ select set_config('request.jwt.claims',
   json_build_object('sub','44444444-4444-4444-4444-444444444441','role','authenticated')::text, true);
 set local role authenticated;
 select public.book_appointment('22222222-2222-2222-2222-222222222221'::uuid,
-                               timestamptz '2026-08-27 09:00+00', 'General checkup', null);
+                               (((date_trunc('week', current_date) + interval '1 week 2 days')::date + 1) + time '09:00') at time zone 'UTC',
+                               'General checkup', null);
 set local role postgres;
 select set_config('request.jwt.claims',
   json_build_object('sub','22222222-2222-2222-2222-222222222221','role','authenticated')::text, true);
 set local role authenticated;
 select public.decide_leave(
-  (select id from public.apply_leave(date '2026-08-27', date '2026-08-28', 'Conference')),
+  (select id from public.apply_leave(
+     (date_trunc('week', current_date) + interval '1 week 2 days')::date + 1,
+     (date_trunc('week', current_date) + interval '1 week 2 days')::date + 2,
+     'Conference')),
   'approved');
 select case when count(*) = 0 then 'PASS' else 'FAIL: ' || count(*) || ' survived' end as status
 from public.appointments
 where doctor_id = '22222222-2222-2222-2222-222222222221'
-  and scheduled_at::date = date '2026-08-27'
+  and (scheduled_at at time zone 'UTC')::date = (date_trunc('week', current_date) + interval '1 week 2 days')::date + 1
   and status <> 'cancelled';
 rollback;
 
