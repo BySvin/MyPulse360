@@ -125,7 +125,33 @@ class SupabaseAuthDataSource implements AuthDataSource {
     required UserRole role,
     required String clinicId,
   }) async {
-    throw UnimplementedError('Staff creation lands in Task 8');
+    try {
+      final response = await _client.functions.invoke(
+        'create-staff-account',
+        body: {
+          'email': email.trim(),
+          'tempPassword': tempPassword,
+          'fullName': fullName.trim(),
+          'role': userRoleToDb(role),
+          // Sent for completeness; the function uses the caller's own clinic
+          // and ignores this, so a doctor cannot provision into another clinic.
+          'clinicId': clinicId,
+        },
+      );
+
+      final data = response.data;
+      if (response.status != 201 || data is! Map) {
+        final message = data is Map && data['error'] is String
+            ? data['error'] as String
+            : 'Could not create that account.';
+        throw DbFailure(message);
+      }
+      return _toUser(Map<String, dynamic>.from(data));
+    } on DbFailure {
+      rethrow;
+    } catch (e) {
+      throw mapPostgrestError(e);
+    }
   }
 
   @override
@@ -134,7 +160,10 @@ class SupabaseAuthDataSource implements AuthDataSource {
     required bool isActive,
   }) async {
     try {
-      await _client.from('profiles').update({'is_active': isActive}).eq('id', userId);
+      await _client.rpc('set_account_active', params: {
+        'p_user': userId,
+        'p_active': isActive,
+      });
     } catch (e) {
       throw mapPostgrestError(e);
     }
