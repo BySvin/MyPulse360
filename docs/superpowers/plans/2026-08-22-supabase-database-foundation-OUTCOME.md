@@ -84,6 +84,17 @@ Surfaced deliberately rather than fixed, so they are visible decisions.
    or trigger. Dart's `PatientProfile.assignedDoctorId` is non-nullable and needs
    reconciling.
 
+### Resolved in Plan 02
+
+- `supabase/config.toml` added (follow-up 5).
+- Follow-ups 1 and 3 from the final review closed by `0016_plan02_prep.sql`.
+- `assign_default_doctor` added (follow-up 8).
+- **Follow-up 4 deliberately not fixed by renaming.** Local files are `NNNN_`;
+  applied versions are timestamps. Before anyone runs `supabase db push`, run
+  `supabase migration repair --status applied <version>` for each applied
+  version, or the push will try to re-run migrations whose bare `create table`
+  statements will fail partway. Renaming the files does not reconcile this.
+
 ### Accepted as-is, with reasons
 
 - `doctor_availability_read` is `using (true)` — working hours are not PII and
