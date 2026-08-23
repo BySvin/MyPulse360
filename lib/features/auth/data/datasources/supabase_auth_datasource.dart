@@ -140,13 +140,17 @@ class SupabaseAuthDataSource implements AuthDataSource {
       );
 
       final data = response.data;
-      if (response.status != 201 || data is! Map) {
-        final message = data is Map && data['error'] is String
-            ? data['error'] as String
-            : 'Could not create that account.';
-        throw DbFailure(message);
+      if (data is! Map) {
+        throw const DbFailure('Could not create that account.');
       }
       return _toUser(Map<String, dynamic>.from(data));
+    } on FunctionsHttpException catch (e) {
+      final details = e.details;
+      throw DbFailure(
+        details is Map && details['error'] is String
+            ? details['error'] as String
+            : 'Could not create that account.',
+      );
     } on DbFailure {
       rethrow;
     } catch (e) {
@@ -177,9 +181,7 @@ class SupabaseAuthDataSource implements AuthDataSource {
     try {
       await _client.auth.updateUser(UserAttributes(password: newPassword));
       // Clearing the flag is what releases the router's forced-change gate.
-      await _client
-          .from('profiles')
-          .update({'must_change_password': false}).eq('id', userId);
+      await _client.rpc('clear_must_change_password');
     } on DbFailure {
       rethrow;
     } catch (e) {
