@@ -34,7 +34,10 @@ class _SplashPageState extends ConsumerState<SplashPage> {
     // sends an already-signed-in user to the login screen. A short poll is
     // deliberate here — the window is sub-second, and a listener subscription
     // in initState needs disposal handling this does not otherwise need.
-    while (mounted && ref.read(authControllerProvider) is AuthLoading) {
+    final deadline = DateTime.now().add(const Duration(seconds: 8));
+    while (mounted &&
+        ref.read(authControllerProvider) is AuthLoading &&
+        DateTime.now().isBefore(deadline)) {
       await Future.delayed(const Duration(milliseconds: 50));
     }
     if (!mounted) return;

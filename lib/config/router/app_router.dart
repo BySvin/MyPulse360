@@ -62,7 +62,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // A session restore is in flight. Hold on the splash screen rather than
       // flashing the login page at someone who is already signed in.
       if (authState is AuthLoading) {
-        return loc == RoutePaths.splash ? null : RoutePaths.splash;
+        // Only a launch-time session restore should pin the user to splash.
+        // login/signUp/changePassword also set AuthLoading, and redirecting
+        // away from those pages mid-submit disposes them — their `!mounted`
+        // guards then swallow the rest of the handler and their error
+        // listeners die before the error ever arrives.
+        const inFlightOk = {
+          RoutePaths.splash,
+          RoutePaths.login,
+          RoutePaths.signUp,
+          RoutePaths.forcePasswordChange,
+        };
+        if (inFlightOk.contains(loc)) return null;
+        return RoutePaths.splash;
       }
 
       if (loc == RoutePaths.splash) return null;

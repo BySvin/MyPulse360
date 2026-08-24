@@ -9,7 +9,6 @@ import '../../../../shared/presentation/widgets/app_text_field.dart';
 import '../../../../shared/presentation/widgets/large_title_app_bar.dart';
 import '../../../../shared/presentation/widgets/primary_button.dart';
 import '../../../../shared/utils/validators.dart';
-import '../../../patient/presentation/providers/patient_providers.dart';
 import '../providers/auth_providers.dart';
 import '../state/auth_state.dart';
 import '../widgets/password_strength_hint.dart';
@@ -66,12 +65,6 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
     if (!mounted) return;
     final state = ref.read(authControllerProvider);
     if (state is AuthAuthenticated) {
-      await ref.read(patientRepositoryProvider).createInitialProfile(
-            patientId: state.user.id,
-            assignedDoctorId: 'user-dr-ahmed',
-          );
-      ref.read(patientDataRevisionProvider.notifier).state++;
-      if (!mounted) return;
       context.go(RoutePaths.onboardingWelcome);
     }
   }

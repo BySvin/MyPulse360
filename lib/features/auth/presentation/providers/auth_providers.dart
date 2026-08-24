@@ -7,11 +7,14 @@ import '../../../../config/constants/hive_boxes.dart';
 import '../../../../config/env/env.dart';
 import '../../../../shared/data/supabase_providers.dart';
 import '../../../../shared/mock/mock_database.dart';
+import '../../../../shared/mock/mock_ids.dart';
+import '../../../patient/presentation/providers/patient_providers.dart';
 import '../../data/datasources/auth_datasource.dart';
 import '../../data/datasources/mock_auth_datasource.dart';
 import '../../data/datasources/supabase_auth_datasource.dart';
 import '../../data/repositories/auth_repository_impl.dart';
 import '../../domain/entities/app_user.dart';
+import '../../domain/entities/user_role.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../../domain/usecases/change_password_usecase.dart';
 import '../../domain/usecases/login_usecase.dart';
@@ -75,10 +78,34 @@ class AuthController extends Notifier<AuthState> {
   Future<void> _restore(String userId) async {
     try {
       final user = await ref.read(authRepositoryProvider).getUserById(userId);
-      state = user == null ? const AuthUnauthenticated() : AuthAuthenticated(user);
+      if (user == null) {
+        state = const AuthUnauthenticated();
+        return;
+      }
+      await _ensureLocalPatientProfile(user);
+      state = AuthAuthenticated(user);
     } catch (e) {
       state = AuthError(e.toString());
     }
+  }
+
+  /// Everything except auth still reads the in-memory mock, and that store is
+  /// keyed by user id. A Supabase-backed patient carries a real UUID the mock
+  /// has never seen, so `onboardingCompleteProvider` reports "not onboarded"
+  /// forever and the router pins them to the welcome screen.
+  ///
+  /// This lives here rather than in the sign-up page because it must also run
+  /// on login and on a restored session: the mock resets on relaunch, so
+  /// creating the row once at registration does not survive. Plan 03 removes
+  /// this entirely when the patient feature moves to Postgres.
+  Future<void> _ensureLocalPatientProfile(AppUser user) async {
+    if (user.role != UserRole.patient) return;
+    if (ref.read(patientProfileProvider(user.id)) != null) return;
+    await ref.read(patientRepositoryProvider).createInitialProfile(
+          patientId: user.id,
+          assignedDoctorId: MockIds.drAhmedUserId,
+        );
+    ref.read(patientDataRevisionProvider.notifier).state++;
   }
 
   Future<void> login({required String email, required String password}) async {
@@ -92,6 +119,7 @@ class AuthController extends Notifier<AuthState> {
       if (Env.isMockMode) {
         await _box.put(HiveBoxes.keyCurrentUserId, user.id);
       }
+      await _ensureLocalPatientProfile(user);
       state = AuthAuthenticated(user);
     } catch (e) {
       state = AuthError(e.toString());
@@ -113,6 +141,7 @@ class AuthController extends Notifier<AuthState> {
       if (Env.isMockMode) {
         await _box.put(HiveBoxes.keyCurrentUserId, user.id);
       }
+      await _ensureLocalPatientProfile(user);
       state = AuthAuthenticated(user);
     } catch (e) {
       state = AuthError(e.toString());
