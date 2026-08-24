@@ -4,7 +4,6 @@ import 'package:intl/intl.dart';
 
 import '../../../../config/theme/app_radii.dart';
 import '../../../../config/theme/app_theme.dart';
-import '../../domain/entities/time_slot.dart';
 import '../providers/appointments_providers.dart';
 
 const _weekdayLetters = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
@@ -35,14 +34,23 @@ class _MonthCalendarState extends ConsumerState<MonthCalendar> {
   @override
   void initState() {
     super.initState();
-    _displayedMonth = DateTime(widget.selectedDate.year, widget.selectedDate.month);
+    _displayedMonth = DateTime(
+      widget.selectedDate.year,
+      widget.selectedDate.month,
+    );
   }
 
-  bool _isSameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
+  bool _isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  String _dayKey(DateTime day) => '${day.year}-${day.month}-${day.day}';
 
   void _changeMonth(int delta) {
     setState(() {
-      _displayedMonth = DateTime(_displayedMonth.year, _displayedMonth.month + delta);
+      _displayedMonth = DateTime(
+        _displayedMonth.year,
+        _displayedMonth.month + delta,
+      );
     });
   }
 
@@ -52,12 +60,35 @@ class _MonthCalendarState extends ConsumerState<MonthCalendar> {
     final today = DateTime.now();
     final todayDay = DateTime(today.year, today.month, today.day);
 
-    final firstOfMonth = DateTime(_displayedMonth.year, _displayedMonth.month, 1);
+    final firstOfMonth = DateTime(
+      _displayedMonth.year,
+      _displayedMonth.month,
+      1,
+    );
     // Monday-first grid start.
     final leadingBlanks = (firstOfMonth.weekday - DateTime.monday) % 7;
     final gridStart = firstOfMonth.subtract(Duration(days: leadingBlanks));
-    final daysInMonth = DateTime(_displayedMonth.year, _displayedMonth.month + 1, 0).day;
+    final daysInMonth = DateTime(
+      _displayedMonth.year,
+      _displayedMonth.month + 1,
+      0,
+    ).day;
     final totalCells = ((leadingBlanks + daysInMonth) / 7).ceil() * 7;
+
+    // One call per calendar month, not one per day cell — per-day slot
+    // queries would cost 31 round trips.
+    final month = ref.watch(
+      monthAvailabilityProvider((
+        doctorId: widget.doctorId,
+        month: _displayedMonth,
+      )),
+    );
+    final monthByDay = {
+      for (final record
+          in month.valueOrNull ??
+              const <({DateTime day, int openSlots, bool isOnLeave})>[])
+        _dayKey(record.day): record,
+    };
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -95,7 +126,11 @@ class _MonthCalendarState extends ConsumerState<MonthCalendar> {
                   child: Center(
                     child: Text(
                       letter,
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: colors.textTertiary),
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: colors.textTertiary,
+                      ),
                     ),
                   ),
                 ),
@@ -107,7 +142,13 @@ class _MonthCalendarState extends ConsumerState<MonthCalendar> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             children: [
-              for (var i = 0; i < totalCells; i++) _buildDayCell(context, gridStart.add(Duration(days: i)), todayDay),
+              for (var i = 0; i < totalCells; i++)
+                _buildDayCell(
+                  context,
+                  gridStart.add(Duration(days: i)),
+                  todayDay,
+                  monthByDay[_dayKey(gridStart.add(Duration(days: i)))],
+                ),
             ],
           ),
           const SizedBox(height: 8),
@@ -125,20 +166,28 @@ class _MonthCalendarState extends ConsumerState<MonthCalendar> {
     );
   }
 
-  Widget _buildDayCell(BuildContext context, DateTime day, DateTime todayDay) {
+  Widget _buildDayCell(
+    BuildContext context,
+    DateTime day,
+    DateTime todayDay,
+    ({DateTime day, int openSlots, bool isOnLeave})? record,
+  ) {
     final colors = context.colors;
     final inMonth = day.month == _displayedMonth.month;
     final isPast = day.isBefore(todayDay);
     final selected = _isSameDay(day, widget.selectedDate);
 
-    final daySlots = inMonth && !isPast
-        ? ref.watch(availableSlotsProvider((doctorId: widget.doctorId, date: day)))
-        : const <TimeSlot>[];
-    final hasSlots = daySlots.any((s) => !s.isDisabled);
-    final onLeave = daySlots.any((s) => s.isDoctorOnLeave);
+    // While the month is still loading, `record` is null: render the cell as
+    // neither open nor on-leave and disable the tap rather than lying about
+    // availability.
+    final isLoaded = inMonth && !isPast && record != null;
+    final hasSlots = record != null && record.openSlots > 0;
+    final onLeave = record != null && record.isOnLeave;
 
     return GestureDetector(
-      onTap: !inMonth || isPast ? null : () => widget.onSelected(day),
+      onTap: !inMonth || isPast || !isLoaded
+          ? null
+          : () => widget.onSelected(day),
       child: Padding(
         padding: const EdgeInsets.all(2),
         child: Container(
@@ -157,8 +206,8 @@ class _MonthCalendarState extends ConsumerState<MonthCalendar> {
                   color: !inMonth || isPast
                       ? colors.textTertiary.withValues(alpha: 0.5)
                       : selected
-                          ? Colors.white
-                          : colors.textPrimary,
+                      ? Colors.white
+                      : colors.textPrimary,
                 ),
               ),
               const SizedBox(height: 2),
@@ -173,10 +222,10 @@ class _MonthCalendarState extends ConsumerState<MonthCalendar> {
                           color: selected
                               ? Colors.white
                               : onLeave
-                                  ? colors.danger
-                                  : hasSlots
-                                      ? colors.success
-                                      : colors.textTertiary.withValues(alpha: 0.4),
+                              ? colors.danger
+                              : hasSlots
+                              ? colors.success
+                              : colors.textTertiary.withValues(alpha: 0.4),
                         ),
                       ),
               ),
@@ -200,9 +249,16 @@ class _LegendDot extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(width: 6, height: 6, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
         const SizedBox(width: 5),
-        Text(label, style: TextStyle(fontSize: 10.5, color: colors.textSecondary)),
+        Text(
+          label,
+          style: TextStyle(fontSize: 10.5, color: colors.textSecondary),
+        ),
       ],
     );
   }

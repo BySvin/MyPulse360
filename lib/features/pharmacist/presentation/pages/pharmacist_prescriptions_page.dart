@@ -30,7 +30,8 @@ class PharmacistPrescriptionsPage extends ConsumerWidget {
               padding: EdgeInsets.only(top: 60),
               child: EmptyStateView(
                 title: 'All caught up',
-                message: "Completed visits waiting on a prescription will show up here.",
+                message:
+                    "Completed visits waiting on a prescription will show up here.",
                 icon: Icons.receipt_long_outlined,
               ),
             )
@@ -55,8 +56,14 @@ class _AwaitingRxTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
-    final patient = ref.watch(userProfileProvider(consultation.patientId)).valueOrNull;
-    final appointments = ref.watch(patientAppointmentsProvider(consultation.patientId));
+    final patient = ref
+        .watch(userProfileProvider(consultation.patientId))
+        .valueOrNull;
+    final appointments =
+        ref
+            .watch(patientAppointmentsProvider(consultation.patientId))
+            .valueOrNull ??
+        const [];
     DateTime? scheduledAt;
     for (final a in appointments) {
       if (a.id == consultation.appointmentId) {
@@ -69,16 +76,24 @@ class _AwaitingRxTile extends ConsumerWidget {
       onTap: () => context.push(RoutePaths.createPrescription(consultation.id)),
       child: Row(
         children: [
-          AvatarWidget(name: patient?.fullName ?? 'Patient', color: colors.clinicianAccent),
+          AvatarWidget(
+            name: patient?.fullName ?? 'Patient',
+            color: colors.clinicianAccent,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(patient?.fullName ?? 'Patient', style: Theme.of(context).textTheme.titleSmall),
+                Text(
+                  patient?.fullName ?? 'Patient',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
                 const SizedBox(height: 3),
                 Text(
-                  consultation.notes?.isNotEmpty == true ? consultation.notes! : 'No medication info from doctor',
+                  consultation.notes?.isNotEmpty == true
+                      ? consultation.notes!
+                      : 'No medication info from doctor',
                   style: TextStyle(fontSize: 12, color: colors.textSecondary),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,

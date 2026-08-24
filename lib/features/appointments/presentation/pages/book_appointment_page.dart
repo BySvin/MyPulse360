@@ -16,7 +16,12 @@ import '../providers/appointments_providers.dart';
 import '../widgets/month_calendar.dart';
 import '../widgets/time_slot_grid.dart';
 
-const _appointmentTypes = ['General Checkup', 'Follow-up', 'New Patient', 'Diabetes Follow-up'];
+const _appointmentTypes = [
+  'General Checkup',
+  'Follow-up',
+  'New Patient',
+  'Diabetes Follow-up',
+];
 const _customType = 'Custom';
 
 /// P6 — Book Appointment: month calendar + slot grid + booking summary,
@@ -26,7 +31,8 @@ class BookAppointmentPage extends ConsumerStatefulWidget {
   const BookAppointmentPage({super.key});
 
   @override
-  ConsumerState<BookAppointmentPage> createState() => _BookAppointmentPageState();
+  ConsumerState<BookAppointmentPage> createState() =>
+      _BookAppointmentPageState();
 }
 
 class _BookAppointmentPageState extends ConsumerState<BookAppointmentPage> {
@@ -38,7 +44,8 @@ class _BookAppointmentPageState extends ConsumerState<BookAppointmentPage> {
   bool _booking = false;
 
   bool get _isCustom => _type == _customType;
-  bool get _customTypeMissing => _isCustom && _customTypeController.text.trim().isEmpty;
+  bool get _customTypeMissing =>
+      _isCustom && _customTypeController.text.trim().isEmpty;
 
   @override
   void initState() {
@@ -58,7 +65,9 @@ class _BookAppointmentPageState extends ConsumerState<BookAppointmentPage> {
     if (slot == null || _customTypeMissing) return;
     final customText = _customTypeController.text.trim();
     setState(() => _booking = true);
-    await ref.read(appointmentsRepositoryProvider).book(
+    await ref
+        .read(appointmentsRepositoryProvider)
+        .book(
           patientId: patientId,
           doctorId: doctorId,
           scheduledAt: slot.dateTime,
@@ -76,16 +85,25 @@ class _BookAppointmentPageState extends ConsumerState<BookAppointmentPage> {
     final colors = context.colors;
     final user = ref.watch(currentUserProvider);
     if (user == null) return const SizedBox.shrink();
-    final profile = ref.watch(patientProfileProvider(user.id));
+    final profile = ref.watch(patientProfileProvider(user.id)).valueOrNull;
     final doctorId = profile?.assignedDoctorId ?? 'user-dr-ahmed';
     final doctor = ref.watch(userProfileProvider(doctorId)).valueOrNull;
     final clinics = ref.watch(mockDatabaseProvider).clinics;
-    final clinicName = clinics.isEmpty ? 'MyPulse360 Clinic' : clinics.first.name;
+    final clinicName = clinics.isEmpty
+        ? 'MyPulse360 Clinic'
+        : clinics.first.name;
 
-    final rawSlots = ref.watch(availableSlotsProvider((doctorId: doctorId, date: _selectedDate)));
+    final rawSlots =
+        ref
+            .watch(
+              availableSlotsProvider((doctorId: doctorId, date: _selectedDate)),
+            )
+            .valueOrNull ??
+        const <TimeSlot>[];
     final openCount = rawSlots.where((s) => !s.isDisabled).length;
     final slots = rawSlots.map((s) {
-      final selected = _selectedSlot != null && s.dateTime == _selectedSlot!.dateTime;
+      final selected =
+          _selectedSlot != null && s.dateTime == _selectedSlot!.dateTime;
       return s.copyWith(isSelected: selected);
     }).toList();
 
@@ -98,10 +116,17 @@ class _BookAppointmentPageState extends ConsumerState<BookAppointmentPage> {
           children: [
             Text(
               '${doctor?.fullName ?? 'Doctor'} · ${_isCustom ? "Custom visit" : _type}',
-              style: TextStyle(fontSize: 12.5, color: colors.patientAccentText, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                fontSize: 12.5,
+                color: colors.patientAccentText,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const SizedBox(height: 14),
-            Text('Appointment type', style: Theme.of(context).textTheme.titleSmall),
+            Text(
+              'Appointment type',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -113,7 +138,9 @@ class _BookAppointmentPageState extends ConsumerState<BookAppointmentPage> {
                     selected: _type == t,
                     onSelected: (_) => setState(() => _type = t),
                     selectedColor: colors.patientAccent,
-                    labelStyle: TextStyle(color: _type == t ? Colors.white : colors.textPrimary),
+                    labelStyle: TextStyle(
+                      color: _type == t ? Colors.white : colors.textPrimary,
+                    ),
                     backgroundColor: Theme.of(context).cardTheme.color,
                     side: BorderSide(color: colors.border),
                   ),
@@ -152,7 +179,10 @@ class _BookAppointmentPageState extends ConsumerState<BookAppointmentPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(DateFormatters.full(_selectedDate), style: Theme.of(context).textTheme.titleSmall),
+                Text(
+                  DateFormatters.full(_selectedDate),
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
                 Text(
                   '$openCount of ${rawSlots.length} slots open',
                   style: TextStyle(fontSize: 11.5, color: colors.textSecondary),
@@ -168,7 +198,10 @@ class _BookAppointmentPageState extends ConsumerState<BookAppointmentPage> {
                         slots.any((s) => s.isDoctorOnLeave)
                             ? '${doctor?.fullName ?? 'Your doctor'} is on leave this day. Please choose another date.'
                             : 'No slots available this day. Try another date.',
-                        style: TextStyle(color: colors.textSecondary, fontSize: 12),
+                        style: TextStyle(
+                          color: colors.textSecondary,
+                          fontSize: 12,
+                        ),
                       ),
                     )
                   : TimeSlotGrid(
@@ -189,14 +222,23 @@ class _BookAppointmentPageState extends ConsumerState<BookAppointmentPage> {
                   children: [
                     Text(
                       'SUMMARY',
-                      style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, letterSpacing: 0.5, color: colors.textTertiary),
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                        color: colors.textTertiary,
+                      ),
                     ),
                     const SizedBox(height: 10),
-                    _SummaryRow(label: 'Doctor', value: doctor?.fullName ?? 'Doctor'),
+                    _SummaryRow(
+                      label: 'Doctor',
+                      value: doctor?.fullName ?? 'Doctor',
+                    ),
                     const SizedBox(height: 8),
                     _SummaryRow(
                       label: 'When',
-                      value: '${DateFormatters.short(_selectedDate)}, ${DateFormatters.time(_selectedSlot!.dateTime)}',
+                      value:
+                          '${DateFormatters.short(_selectedDate)}, ${DateFormatters.time(_selectedSlot!.dateTime)}',
                     ),
                     const SizedBox(height: 8),
                     _SummaryRow(label: 'Where', value: clinicName),
@@ -207,7 +249,10 @@ class _BookAppointmentPageState extends ConsumerState<BookAppointmentPage> {
               CheckboxListTile(
                 value: _notifyMe,
                 onChanged: (v) => setState(() => _notifyMe = v ?? true),
-                title: const Text('Notify me 1 hour before', style: TextStyle(fontSize: 13)),
+                title: const Text(
+                  'Notify me 1 hour before',
+                  style: TextStyle(fontSize: 13),
+                ),
                 controlAffinity: ListTileControlAffinity.leading,
                 contentPadding: EdgeInsets.zero,
                 dense: true,
@@ -217,7 +262,9 @@ class _BookAppointmentPageState extends ConsumerState<BookAppointmentPage> {
             const SizedBox(height: 10),
             PrimaryButton(
               label: 'Confirm Booking',
-              onPressed: _selectedSlot == null || _customTypeMissing ? null : () => _book(doctorId, user.id),
+              onPressed: _selectedSlot == null || _customTypeMissing
+                  ? null
+                  : () => _book(doctorId, user.id),
               loading: _booking,
             ),
           ],
@@ -239,8 +286,18 @@ class _SummaryRow extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: TextStyle(fontSize: 12.5, color: colors.textSecondary)),
-        Text(value, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: colors.textPrimary)),
+        Text(
+          label,
+          style: TextStyle(fontSize: 12.5, color: colors.textSecondary),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w600,
+            color: colors.textPrimary,
+          ),
+        ),
       ],
     );
   }

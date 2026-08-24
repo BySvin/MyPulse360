@@ -6,5 +6,6 @@ class GetPatientAppointmentsUseCase {
 
   final AppointmentsRepository _repository;
 
-  List<Appointment> call(String patientId) => _repository.getForPatient(patientId);
+  Future<List<Appointment>> call(String patientId) =>
+      _repository.getForPatient(patientId);
 }

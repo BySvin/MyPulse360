@@ -35,7 +35,9 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
 /// needing to fake the platform.
 final isWebPlatformProvider = Provider<bool>((ref) => kIsWeb);
 
-final authControllerProvider = NotifierProvider<AuthController, AuthState>(AuthController.new);
+final authControllerProvider = NotifierProvider<AuthController, AuthState>(
+  AuthController.new,
+);
 
 final currentUserProvider = Provider<AppUser?>((ref) {
   final state = ref.watch(authControllerProvider);
@@ -100,8 +102,11 @@ class AuthController extends Notifier<AuthState> {
   /// this entirely when the patient feature moves to Postgres.
   Future<void> _ensureLocalPatientProfile(AppUser user) async {
     if (user.role != UserRole.patient) return;
-    if (ref.read(patientProfileProvider(user.id)) != null) return;
-    await ref.read(patientRepositoryProvider).createInitialProfile(
+    final existing = await ref.read(patientProfileProvider(user.id).future);
+    if (existing != null) return;
+    await ref
+        .read(patientRepositoryProvider)
+        .createInitialProfile(
           patientId: user.id,
           assignedDoctorId: MockIds.drAhmedUserId,
         );
@@ -133,11 +138,9 @@ class AuthController extends Notifier<AuthState> {
   }) async {
     state = const AuthLoading();
     try {
-      final user = await SignUpUseCase(ref.read(authRepositoryProvider)).call(
-        email: email,
-        password: password,
-        fullName: fullName,
-      );
+      final user = await SignUpUseCase(
+        ref.read(authRepositoryProvider),
+      ).call(email: email, password: password, fullName: fullName);
       if (Env.isMockMode) {
         await _box.put(HiveBoxes.keyCurrentUserId, user.id);
       }
@@ -156,8 +159,12 @@ class AuthController extends Notifier<AuthState> {
     state = const AuthLoading();
     try {
       final repository = ref.read(authRepositoryProvider);
-      await ChangePasswordUseCase(repository).call(userId: current.user.id, newPassword: newPassword);
-      state = AuthAuthenticated((await repository.getUserById(current.user.id))!);
+      await ChangePasswordUseCase(
+        repository,
+      ).call(userId: current.user.id, newPassword: newPassword);
+      state = AuthAuthenticated(
+        (await repository.getUserById(current.user.id))!,
+      );
     } catch (e) {
       state = AuthError(e.toString());
     }

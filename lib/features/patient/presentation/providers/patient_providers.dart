@@ -8,23 +8,35 @@ import '../../domain/entities/wellness_goal.dart';
 import '../../domain/repositories/patient_repository.dart';
 
 final patientRepositoryProvider = Provider<PatientRepository>((ref) {
-  return PatientRepositoryImpl(MockPatientDataSource(ref.watch(mockDatabaseProvider)));
+  return PatientRepositoryImpl(
+    MockPatientDataSource(ref.watch(mockDatabaseProvider)),
+  );
 });
 
 /// Bumped after any mutating call (onboarding, profile update) so dependent
 /// providers re-read the mock store.
 final patientDataRevisionProvider = StateProvider<int>((ref) => 0);
 
-final patientProfileProvider = Provider.family<PatientProfile?, String>((ref, patientId) {
+final patientProfileProvider = FutureProvider.family<PatientProfile?, String>((
+  ref,
+  patientId,
+) {
   ref.watch(patientDataRevisionProvider);
   return ref.watch(patientRepositoryProvider).getProfile(patientId);
 });
 
-final wellnessGoalsProvider = Provider.family<List<WellnessGoal>, String>((ref, patientId) {
-  ref.watch(patientDataRevisionProvider);
-  return ref.watch(patientRepositoryProvider).getWellnessGoals(patientId);
-});
+final wellnessGoalsProvider = FutureProvider.family<List<WellnessGoal>, String>(
+  (ref, patientId) {
+    ref.watch(patientDataRevisionProvider);
+    return ref.watch(patientRepositoryProvider).getWellnessGoals(patientId);
+  },
+);
 
-final onboardingCompleteProvider = Provider.family<bool, String>((ref, patientId) {
-  return ref.watch(patientProfileProvider(patientId)) != null;
+final onboardingCompleteProvider = Provider.family<bool, String>((
+  ref,
+  patientId,
+) {
+  // A profile that has not loaded yet is not "not onboarded" — treating it as
+  // false is what pinned real patients to the welcome screen in Plan 02.
+  return ref.watch(patientProfileProvider(patientId)).valueOrNull != null;
 });

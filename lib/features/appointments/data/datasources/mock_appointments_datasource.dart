@@ -12,51 +12,92 @@ class MockAppointmentsDataSource implements AppointmentsDataSource {
   final MockDatabase _db;
 
   @override
-  List<Appointment> getForPatient(String patientId) {
-    final list = _db.appointments.where((a) => a.patientId == patientId).toList()
-      ..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
+  Future<List<Appointment>> getForPatient(String patientId) async {
+    final list =
+        _db.appointments.where((a) => a.patientId == patientId).toList()
+          ..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
     return list;
   }
 
   @override
-  List<Appointment> getForDoctor(String doctorId) {
+  Future<List<Appointment>> getForDoctor(String doctorId) async {
     final list = _db.appointments.where((a) => a.doctorId == doctorId).toList()
       ..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
     return list;
   }
 
-  @override
-  Appointment? getNextUpcoming(String patientId) {
+  Appointment? _nextUpcoming(String patientId) {
     final now = DateTime.now();
-    final upcoming = _db.appointments
-        .where((a) =>
-            a.patientId == patientId &&
-            a.scheduledAt.isAfter(now) &&
-            a.status != AppointmentStatus.cancelled)
-        .toList()
-      ..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
+    final upcoming =
+        _db.appointments
+            .where(
+              (a) =>
+                  a.patientId == patientId &&
+                  a.scheduledAt.isAfter(now) &&
+                  a.status != AppointmentStatus.cancelled,
+            )
+            .toList()
+          ..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
     return upcoming.isEmpty ? null : upcoming.first;
   }
 
   @override
-  List<TimeSlot> getAvailableSlots({required String doctorId, required DateTime date}) {
+  Stream<Appointment?> watchNextUpcoming(String patientId) =>
+      Stream.value(_nextUpcoming(patientId));
+
+  List<Appointment> _todaysQueue(String doctorId) {
+    final now = DateTime.now();
+    final list =
+        _db.appointments
+            .where(
+              (a) =>
+                  a.doctorId == doctorId &&
+                  a.scheduledAt.year == now.year &&
+                  a.scheduledAt.month == now.month &&
+                  a.scheduledAt.day == now.day &&
+                  a.status != AppointmentStatus.cancelled,
+            )
+            .toList()
+          ..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
+    return list;
+  }
+
+  @override
+  Stream<List<Appointment>> watchTodaysQueue(String doctorId) =>
+      Stream.value(_todaysQueue(doctorId));
+
+  List<TimeSlot> getAvailableSlotsSync({
+    required String doctorId,
+    required DateTime date,
+  }) {
     final onLeave = _db.leaveRequests.any(
-      (l) => l.staffId == doctorId && l.status == LeaveStatus.approved && l.coversDate(date),
+      (l) =>
+          l.staffId == doctorId &&
+          l.status == LeaveStatus.approved &&
+          l.coversDate(date),
     );
 
     final booked = _db.appointments
-        .where((a) =>
-            a.doctorId == doctorId &&
-            a.scheduledAt.year == date.year &&
-            a.scheduledAt.month == date.month &&
-            a.scheduledAt.day == date.day &&
-            a.status != AppointmentStatus.cancelled)
-        .map((a) => _SlotKey(hour: a.scheduledAt.hour, minute: a.scheduledAt.minute))
+        .where(
+          (a) =>
+              a.doctorId == doctorId &&
+              a.scheduledAt.year == date.year &&
+              a.scheduledAt.month == date.month &&
+              a.scheduledAt.day == date.day &&
+              a.status != AppointmentStatus.cancelled,
+        )
+        .map(
+          (a) =>
+              _SlotKey(hour: a.scheduledAt.hour, minute: a.scheduledAt.minute),
+        )
         .toSet();
 
     final slots = <TimeSlot>[];
-    final isPastDay = DateTime(date.year, date.month, date.day)
-        .isBefore(DateTime.now().subtract(const Duration(days: 1)));
+    final isPastDay = DateTime(
+      date.year,
+      date.month,
+      date.day,
+    ).isBefore(DateTime.now().subtract(const Duration(days: 1)));
     for (var hour = 9; hour < 17; hour++) {
       for (final minute in [0, 30]) {
         final dt = DateTime(date.year, date.month, date.day, hour, minute);
@@ -73,6 +114,34 @@ class MockAppointmentsDataSource implements AppointmentsDataSource {
       }
     }
     return slots;
+  }
+
+  @override
+  Future<List<TimeSlot>> getAvailableSlots({
+    required String doctorId,
+    required DateTime date,
+  }) async => getAvailableSlotsSync(doctorId: doctorId, date: date);
+
+  @override
+  Future<List<({DateTime day, int openSlots, bool isOnLeave})>>
+  getMonthAvailability({
+    required String doctorId,
+    required DateTime month,
+  }) async {
+    final first = DateTime(month.year, month.month, 1);
+    final days = DateTime(month.year, month.month + 1, 0).day;
+    return [
+      for (var i = 0; i < days; i++)
+        () {
+          final day = DateTime(first.year, first.month, i + 1);
+          final slots = getAvailableSlotsSync(doctorId: doctorId, date: day);
+          return (
+            day: day,
+            openSlots: slots.where((s) => !s.isDisabled).length,
+            isOnLeave: slots.any((s) => s.isDoctorOnLeave),
+          );
+        }(),
+    ];
   }
 
   @override
@@ -100,7 +169,10 @@ class MockAppointmentsDataSource implements AppointmentsDataSource {
   }
 
   @override
-  Future<Appointment> updateStatus(String appointmentId, AppointmentStatus status) async {
+  Future<Appointment> updateStatus(
+    String appointmentId,
+    AppointmentStatus status,
+  ) async {
     await simulateLatency();
     final i = _db.appointments.indexWhere((a) => a.id == appointmentId);
     if (i == -1) throw StateError('Appointment not found');

@@ -6,7 +6,10 @@ import '../repositories/scheduling_repository.dart';
 /// Outcome of taking leave: the approved record, plus the appointments that
 /// had to be cancelled because they sat inside the window.
 class ApplyLeaveResult {
-  const ApplyLeaveResult({required this.leave, required this.cancelledAppointments});
+  const ApplyLeaveResult({
+    required this.leave,
+    required this.cancelledAppointments,
+  });
 
   final LeaveRequest leave;
   final List<Appointment> cancelledAppointments;
@@ -32,7 +35,7 @@ class ApplyLeaveUseCase {
     required DateTime endDate,
     required String reason,
   }) async {
-    final affected = appointmentsInRange(
+    final affected = await appointmentsInRange(
       doctorId: staffId,
       startDate: startDate,
       endDate: endDate,
@@ -47,7 +50,10 @@ class ApplyLeaveUseCase {
     );
 
     for (final appointment in affected) {
-      await _appointments.updateStatus(appointment.id, AppointmentStatus.cancelled);
+      await _appointments.updateStatus(
+        appointment.id,
+        AppointmentStatus.cancelled,
+      );
     }
 
     return ApplyLeaveResult(leave: leave, cancelledAppointments: affected);
@@ -56,20 +62,22 @@ class ApplyLeaveUseCase {
   /// Still-live appointments for [doctorId] between [startDate] and
   /// [endDate] inclusive. Also drives the warning shown before the leave is
   /// submitted, so the doctor sees the cost of the dates they picked.
-  List<Appointment> appointmentsInRange({
+  Future<List<Appointment>> appointmentsInRange({
     required String doctorId,
     required DateTime startDate,
     required DateTime endDate,
-  }) {
+  }) async {
     final start = DateTime(startDate.year, startDate.month, startDate.day);
     final end = DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59);
-    return _appointments
-        .getForDoctor(doctorId)
-        .where((a) =>
-            a.status != AppointmentStatus.cancelled &&
-            a.status != AppointmentStatus.completed &&
-            !a.scheduledAt.isBefore(start) &&
-            !a.scheduledAt.isAfter(end))
+    final appointments = await _appointments.getForDoctor(doctorId);
+    return appointments
+        .where(
+          (a) =>
+              a.status != AppointmentStatus.cancelled &&
+              a.status != AppointmentStatus.completed &&
+              !a.scheduledAt.isBefore(start) &&
+              !a.scheduledAt.isAfter(end),
+        )
         .toList();
   }
 }

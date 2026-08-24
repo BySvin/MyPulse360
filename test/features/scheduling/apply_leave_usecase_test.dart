@@ -20,7 +20,8 @@ void main() {
 
   // Far enough ahead that "in the past" slot rules never interfere.
   final leaveDay = DateTime.now().add(const Duration(days: 30));
-  DateTime slotOn(DateTime day, int hour) => DateTime(day.year, day.month, day.day, hour);
+  DateTime slotOn(DateTime day, int hour) =>
+      DateTime(day.year, day.month, day.day, hour);
 
   setUp(() {
     db = MockDatabase();
@@ -39,7 +40,10 @@ void main() {
       reason: 'Vacation',
     );
 
-    final slots = appointments.getAvailableSlots(doctorId: MockIds.drAhmedUserId, date: leaveDay);
+    final slots = await appointments.getAvailableSlots(
+      doctorId: MockIds.drAhmedUserId,
+      date: leaveDay,
+    );
     expect(slots, isNotEmpty);
     expect(slots.every((s) => s.isDisabled), isTrue);
     expect(slots.every((s) => s.isDoctorOnLeave), isTrue);
@@ -61,41 +65,50 @@ void main() {
     );
 
     expect(result.cancelledAppointments.map((a) => a.id), [booked.id]);
-    final after = appointments.getForDoctor(MockIds.drAhmedUserId).firstWhere((a) => a.id == booked.id);
+    final after = (await appointments.getForDoctor(
+      MockIds.drAhmedUserId,
+    )).firstWhere((a) => a.id == booked.id);
     expect(after.status, AppointmentStatus.cancelled);
   });
 
-  test('appointments outside the window and other doctors are left alone', () async {
-    final outside = await appointments.book(
-      patientId: MockIds.sarahPatientId,
-      doctorId: MockIds.drAhmedUserId,
-      scheduledAt: slotOn(leaveDay.add(const Duration(days: 1)), 10),
-      appointmentType: 'Follow-up',
-    );
-    final otherDoctor = await appointments.book(
-      patientId: MockIds.sarahPatientId,
-      doctorId: MockIds.fatimaUserId,
-      scheduledAt: slotOn(leaveDay, 11),
-      appointmentType: 'Follow-up',
-    );
+  test(
+    'appointments outside the window and other doctors are left alone',
+    () async {
+      final outside = await appointments.book(
+        patientId: MockIds.sarahPatientId,
+        doctorId: MockIds.drAhmedUserId,
+        scheduledAt: slotOn(leaveDay.add(const Duration(days: 1)), 10),
+        appointmentType: 'Follow-up',
+      );
+      final otherDoctor = await appointments.book(
+        patientId: MockIds.sarahPatientId,
+        doctorId: MockIds.fatimaUserId,
+        scheduledAt: slotOn(leaveDay, 11),
+        appointmentType: 'Follow-up',
+      );
 
-    final result = await applyLeave(
-      staffId: MockIds.drAhmedUserId,
-      startDate: leaveDay,
-      endDate: leaveDay,
-      reason: 'Vacation',
-    );
+      final result = await applyLeave(
+        staffId: MockIds.drAhmedUserId,
+        startDate: leaveDay,
+        endDate: leaveDay,
+        reason: 'Vacation',
+      );
 
-    expect(result.cancelledAppointments, isEmpty);
-    expect(
-      appointments.getForDoctor(MockIds.drAhmedUserId).firstWhere((a) => a.id == outside.id).status,
-      isNot(AppointmentStatus.cancelled),
-    );
-    expect(
-      appointments.getForDoctor(MockIds.fatimaUserId).firstWhere((a) => a.id == otherDoctor.id).status,
-      isNot(AppointmentStatus.cancelled),
-    );
-  });
+      expect(result.cancelledAppointments, isEmpty);
+      expect(
+        (await appointments.getForDoctor(
+          MockIds.drAhmedUserId,
+        )).firstWhere((a) => a.id == outside.id).status,
+        isNot(AppointmentStatus.cancelled),
+      );
+      expect(
+        (await appointments.getForDoctor(
+          MockIds.fatimaUserId,
+        )).firstWhere((a) => a.id == otherDoctor.id).status,
+        isNot(AppointmentStatus.cancelled),
+      );
+    },
+  );
 
   test('a multi-day leave clears every day it spans', () async {
     final lastDay = leaveDay.add(const Duration(days: 2));
@@ -115,31 +128,45 @@ void main() {
 
     expect(result.leave.status, LeaveStatus.approved);
     expect(result.cancelledAppointments.map((a) => a.id), contains(middle.id));
-    for (final day in [leaveDay, leaveDay.add(const Duration(days: 1)), lastDay]) {
-      final slots = appointments.getAvailableSlots(doctorId: MockIds.drAhmedUserId, date: day);
-      expect(slots.every((s) => s.isDoctorOnLeave), isTrue, reason: 'day $day should read as on leave');
+    for (final day in [
+      leaveDay,
+      leaveDay.add(const Duration(days: 1)),
+      lastDay,
+    ]) {
+      final slots = await appointments.getAvailableSlots(
+        doctorId: MockIds.drAhmedUserId,
+        date: day,
+      );
+      expect(
+        slots.every((s) => s.isDoctorOnLeave),
+        isTrue,
+        reason: 'day $day should read as on leave',
+      );
     }
   });
 
-  test('appointmentsInRange previews the clash before the leave is taken', () async {
-    await appointments.book(
-      patientId: MockIds.sarahPatientId,
-      doctorId: MockIds.drAhmedUserId,
-      scheduledAt: slotOn(leaveDay, 9),
-      appointmentType: 'Follow-up',
-    );
+  test(
+    'appointmentsInRange previews the clash before the leave is taken',
+    () async {
+      await appointments.book(
+        patientId: MockIds.sarahPatientId,
+        doctorId: MockIds.drAhmedUserId,
+        scheduledAt: slotOn(leaveDay, 9),
+        appointmentType: 'Follow-up',
+      );
 
-    final preview = applyLeave.appointmentsInRange(
-      doctorId: MockIds.drAhmedUserId,
-      startDate: leaveDay,
-      endDate: leaveDay,
-    );
+      final preview = await applyLeave.appointmentsInRange(
+        doctorId: MockIds.drAhmedUserId,
+        startDate: leaveDay,
+        endDate: leaveDay,
+      );
 
-    expect(preview, hasLength(1));
-    expect(
-      db.leaveRequests.where((l) => l.staffId == MockIds.drAhmedUserId),
-      isEmpty,
-      reason: 'previewing must not file anything',
-    );
-  });
+      expect(preview, hasLength(1));
+      expect(
+        db.leaveRequests.where((l) => l.staffId == MockIds.drAhmedUserId),
+        isEmpty,
+        reason: 'previewing must not file anything',
+      );
+    },
+  );
 }

@@ -87,7 +87,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       final user = authState.user;
       if (user.mustChangePassword) {
-        return loc == RoutePaths.forcePasswordChange ? null : RoutePaths.forcePasswordChange;
+        return loc == RoutePaths.forcePasswordChange
+            ? null
+            : RoutePaths.forcePasswordChange;
+      }
+
+      // Don't answer the onboarding question until the answer has arrived.
+      // A profile that is still loading is not "not onboarded" — treating it
+      // as false is what pinned real patients to the welcome screen before.
+      final profileAsync = ref.read(patientProfileProvider(user.id));
+      if (user.role == UserRole.patient && profileAsync.isLoading) {
+        return null;
       }
 
       // "Onboarded" just means a profile row exists, which now happens
@@ -97,9 +107,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // just because a profile exists; only auth routes and the forced
       // password-change gate should ever redirect to the dashboard root.
       final onboarded =
-          user.role != UserRole.patient || ref.read(onboardingCompleteProvider(user.id));
+          user.role != UserRole.patient || profileAsync.valueOrNull != null;
       if (!onboarded) {
-        return loc == RoutePaths.onboardingWelcome ? null : RoutePaths.onboardingWelcome;
+        return loc == RoutePaths.onboardingWelcome
+            ? null
+            : RoutePaths.onboardingWelcome;
       }
 
       if (isAuthRoute || loc == RoutePaths.forcePasswordChange) {
@@ -152,7 +164,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: RoutePaths.patientAppointmentDetail,
-        builder: (_, state) => AppointmentDetailPage(appointmentId: state.pathParameters['appointmentId']!),
+        builder: (_, state) => AppointmentDetailPage(
+          appointmentId: state.pathParameters['appointmentId']!,
+        ),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) => AppShellScaffold(
@@ -162,7 +176,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         branches: [
           StatefulShellBranch(
             routes: [
-              GoRoute(path: RoutePaths.patientDashboard, builder: (_, _) => const DashboardPage()),
+              GoRoute(
+                path: RoutePaths.patientDashboard,
+                builder: (_, _) => const DashboardPage(),
+              ),
             ],
           ),
           StatefulShellBranch(
@@ -175,7 +192,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           StatefulShellBranch(
             routes: [
-              GoRoute(path: RoutePaths.patientQueue, builder: (_, _) => const QueueNumberPage()),
+              GoRoute(
+                path: RoutePaths.patientQueue,
+                builder: (_, _) => const QueueNumberPage(),
+              ),
             ],
           ),
           StatefulShellBranch(
@@ -196,7 +216,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           StatefulShellBranch(
             routes: [
-              GoRoute(path: RoutePaths.patientProfile, builder: (_, _) => const ProfilePage()),
+              GoRoute(
+                path: RoutePaths.patientProfile,
+                builder: (_, _) => const ProfilePage(),
+              ),
             ],
           ),
         ],
@@ -220,7 +243,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         branches: [
           StatefulShellBranch(
             routes: [
-              GoRoute(path: RoutePaths.doctorDashboard, builder: (_, _) => const DoctorDashboardPage()),
+              GoRoute(
+                path: RoutePaths.doctorDashboard,
+                builder: (_, _) => const DoctorDashboardPage(),
+              ),
             ],
           ),
           StatefulShellBranch(
@@ -233,7 +259,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           StatefulShellBranch(
             routes: [
-              GoRoute(path: RoutePaths.doctorApplyLeave, builder: (_, _) => const ApplyLeavePage()),
+              GoRoute(
+                path: RoutePaths.doctorApplyLeave,
+                builder: (_, _) => const ApplyLeavePage(),
+              ),
             ],
           ),
         ],
@@ -246,7 +275,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: RoutePaths.pharmacistCreatePrescription,
-        builder: (_, state) => CreatePrescriptionPage(consultationId: state.pathParameters['consultationId']!),
+        builder: (_, state) => CreatePrescriptionPage(
+          consultationId: state.pathParameters['consultationId']!,
+        ),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) => ClinicianAppShell(

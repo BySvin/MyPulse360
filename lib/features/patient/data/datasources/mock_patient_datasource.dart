@@ -11,7 +11,7 @@ class MockPatientDataSource implements PatientDataSource {
   final MockDatabase _db;
 
   @override
-  PatientProfile? getProfile(String patientId) {
+  Future<PatientProfile?> getProfile(String patientId) async {
     for (final p in _db.patients) {
       if (p.id == patientId) return p;
     }
@@ -19,7 +19,7 @@ class MockPatientDataSource implements PatientDataSource {
   }
 
   @override
-  List<WellnessGoal> getWellnessGoals(String patientId) =>
+  Future<List<WellnessGoal>> getWellnessGoals(String patientId) async =>
       _db.wellnessGoals.where((g) => g.patientId == patientId).toList();
 
   @override

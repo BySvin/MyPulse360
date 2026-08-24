@@ -18,7 +18,11 @@ import '../providers/scheduling_providers.dart';
 ///
 /// Returns the number of appointments that were cancelled by the leave, or
 /// `null` if the sheet was dismissed.
-Future<int?> showApplyLeaveSheet(BuildContext context, WidgetRef ref, String staffId) {
+Future<int?> showApplyLeaveSheet(
+  BuildContext context,
+  WidgetRef ref,
+  String staffId,
+) {
   return showModalBottomSheet<int>(
     context: context,
     isScrollControlled: true,
@@ -75,7 +79,9 @@ class _ApplyLeaveSheetState extends ConsumerState<_ApplyLeaveSheet> {
   Future<void> _save() async {
     setState(() => _saving = true);
 
-    final result = await ref.read(applyLeaveUseCaseProvider).call(
+    final result = await ref
+        .read(applyLeaveUseCaseProvider)
+        .call(
           staffId: widget.staffId,
           startDate: _start,
           endDate: _end,
@@ -89,18 +95,36 @@ class _ApplyLeaveSheetState extends ConsumerState<_ApplyLeaveSheet> {
     Navigator.of(context).pop(result.cancelledAppointments.length);
   }
 
-  String _fmt(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  String _fmt(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final dayCount = _end.difference(DateTime(_start.year, _start.month, _start.day)).inDays + 1;
-    final clashes = ref.watch(
-      appointmentsInLeaveRangeProvider((doctorId: widget.staffId, start: _start, end: _end)),
-    );
+    final dayCount =
+        _end
+            .difference(DateTime(_start.year, _start.month, _start.day))
+            .inDays +
+        1;
+    // Decorative: a preview warning of what the leave would cancel, not the
+    // core content of the sheet — fine to show as empty for a moment while
+    // it loads rather than blocking the whole form.
+    final clashes =
+        ref
+            .watch(
+              appointmentsInLeaveRangeProvider((
+                doctorId: widget.staffId,
+                start: _start,
+                end: _end,
+              )),
+            )
+            .valueOrNull ??
+        const [];
 
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: SafeArea(
         child: Container(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
@@ -117,10 +141,16 @@ class _ApplyLeaveSheetState extends ConsumerState<_ApplyLeaveSheet> {
                   width: 36,
                   height: 4,
                   margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(color: colors.border, borderRadius: BorderRadius.circular(2)),
+                  decoration: BoxDecoration(
+                    color: colors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
-              Text('Apply for Leave', style: Theme.of(context).textTheme.titleLarge),
+              Text(
+                'Apply for Leave',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
               const SizedBox(height: 4),
               Text(
                 'Approved as soon as you submit — patients will not be offered any slot '
@@ -139,7 +169,10 @@ class _ApplyLeaveSheetState extends ConsumerState<_ApplyLeaveSheet> {
                           border: OutlineInputBorder(),
                           isDense: true,
                         ),
-                        child: Text(_fmt(_start), style: const TextStyle(fontSize: 13.5)),
+                        child: Text(
+                          _fmt(_start),
+                          style: const TextStyle(fontSize: 13.5),
+                        ),
                       ),
                     ),
                   ),
@@ -153,7 +186,10 @@ class _ApplyLeaveSheetState extends ConsumerState<_ApplyLeaveSheet> {
                           border: OutlineInputBorder(),
                           isDense: true,
                         ),
-                        child: Text(_fmt(_end), style: const TextStyle(fontSize: 13.5)),
+                        child: Text(
+                          _fmt(_end),
+                          style: const TextStyle(fontSize: 13.5),
+                        ),
                       ),
                     ),
                   ),
@@ -181,12 +217,18 @@ class _ApplyLeaveSheetState extends ConsumerState<_ApplyLeaveSheet> {
                   decoration: BoxDecoration(
                     color: colors.warning.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(AppRadii.card),
-                    border: Border.all(color: colors.warning.withValues(alpha: 0.35)),
+                    border: Border.all(
+                      color: colors.warning.withValues(alpha: 0.35),
+                    ),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.event_busy_outlined, size: 18, color: colors.warning),
+                      Icon(
+                        Icons.event_busy_outlined,
+                        size: 18,
+                        color: colors.warning,
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Column(
@@ -195,14 +237,20 @@ class _ApplyLeaveSheetState extends ConsumerState<_ApplyLeaveSheet> {
                             Text(
                               '${clashes.length} booked ${clashes.length == 1 ? 'appointment' : 'appointments'} '
                               'in this window',
-                              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                              style: const TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                             const SizedBox(height: 2),
                             Text(
                               'They will be cancelled when the leave is applied: '
                               '${clashes.take(3).map((a) => DateFormatters.short(a.scheduledAt)).join(', ')}'
                               '${clashes.length > 3 ? '…' : ''}',
-                              style: TextStyle(fontSize: 11.5, color: colors.textSecondary),
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                color: colors.textSecondary,
+                              ),
                             ),
                           ],
                         ),
@@ -212,7 +260,11 @@ class _ApplyLeaveSheetState extends ConsumerState<_ApplyLeaveSheet> {
                 ),
               ],
               const SizedBox(height: 20),
-              PrimaryButton(label: 'Apply for Leave', onPressed: _save, loading: _saving),
+              PrimaryButton(
+                label: 'Apply for Leave',
+                onPressed: _save,
+                loading: _saving,
+              ),
             ],
           ),
         ),

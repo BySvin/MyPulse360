@@ -7,6 +7,7 @@ import '../../../../config/constants/app_constants.dart';
 import '../../../../config/router/route_paths.dart';
 import '../../../../config/theme/app_radii.dart';
 import '../../../../config/theme/app_theme.dart';
+import '../../../../shared/presentation/widgets/async_section.dart';
 import '../../../../shared/presentation/widgets/avatar_widget.dart';
 import '../../../../shared/presentation/widgets/empty_state_view.dart';
 import '../../../../shared/presentation/widgets/primary_button.dart';
@@ -34,76 +35,120 @@ class DoctorDashboardPage extends ConsumerWidget {
     final user = ref.watch(currentUserProvider);
     if (user == null) return const SizedBox.shrink();
 
-    final queue = ref.watch(todaysQueueProvider(user.id));
-    final isDesktop = MediaQuery.of(context).size.width >= AppConstants.desktopBreakpoint;
-
-    final confirmed = queue.where((a) => a.status == AppointmentStatus.confirmed).length;
-    final pending = queue.where((a) => a.status == AppointmentStatus.scheduled).length;
-    final completed = queue.where((a) => a.status == AppointmentStatus.completed).length;
-    final waitingLong = queue.where((a) => QueueStatus.forAppointment(a).label == 'Waiting 30+ min').toList();
-    final activeIndex = queue.indexWhere((a) => a.status != AppointmentStatus.completed);
-    final activeRoom = activeIndex >= 0 ? queue[activeIndex].roomLabel : null;
+    final queueAsync = ref.watch(todaysQueueProvider(user.id));
+    final isDesktop =
+        MediaQuery.of(context).size.width >= AppConstants.desktopBreakpoint;
 
     return Scaffold(
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-          children: [
-            _HeaderCard(user: user, room: activeRoom, showSignOut: !isDesktop),
-            const SizedBox(height: 16),
-            _StatCardsRow(
-              patientsToday: queue.length,
-              confirmed: confirmed,
-              pending: pending,
-              completed: completed,
-            ),
-            const SizedBox(height: 22),
-            Text('Patient queue', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 10),
-            if (queue.isEmpty)
-              const Padding(
-                padding: EdgeInsets.only(top: 40),
-                child: EmptyStateView(
-                  title: 'No patients scheduled today',
-                  message: 'Enjoy the quiet — your queue will appear here.',
-                  icon: Icons.event_available_outlined,
+        child: AsyncSection(
+          value: queueAsync,
+          data: (queue) {
+            final confirmed = queue
+                .where((a) => a.status == AppointmentStatus.confirmed)
+                .length;
+            final pending = queue
+                .where((a) => a.status == AppointmentStatus.scheduled)
+                .length;
+            final completed = queue
+                .where((a) => a.status == AppointmentStatus.completed)
+                .length;
+            final waitingLong = queue
+                .where(
+                  (a) =>
+                      QueueStatus.forAppointment(a).label == 'Waiting 30+ min',
+                )
+                .toList();
+            final activeIndex = queue.indexWhere(
+              (a) => a.status != AppointmentStatus.completed,
+            );
+            final activeRoom = activeIndex >= 0
+                ? queue[activeIndex].roomLabel
+                : null;
+
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              children: [
+                _HeaderCard(
+                  user: user,
+                  room: activeRoom,
+                  showSignOut: !isDesktop,
                 ),
-              )
-            else
-              for (var i = 0; i < queue.length; i++) ...[
-                _DoctorQueueRow(appointment: queue[i], isActive: i == activeIndex)
-                    .animate()
-                    .fadeIn(delay: (i * 50).ms, duration: 220.ms)
-                    .slideY(begin: 0.06, end: 0, curve: Curves.easeOut),
+                const SizedBox(height: 16),
+                _StatCardsRow(
+                  patientsToday: queue.length,
+                  confirmed: confirmed,
+                  pending: pending,
+                  completed: completed,
+                ),
+                const SizedBox(height: 22),
+                Text(
+                  'Patient queue',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
                 const SizedBox(height: 10),
-              ],
-            if (waitingLong.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text('Alerts', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: colors.warning.withValues(alpha: 0.08),
-                  border: Border.all(color: colors.warning.withValues(alpha: 0.35)),
-                  borderRadius: BorderRadius.circular(AppRadii.card),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(Icons.schedule_rounded, size: 18, color: colors.warningText),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        '${waitingLong.length} patient${waitingLong.length == 1 ? '' : 's'} waiting 30+ minutes',
-                        style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: colors.textPrimary),
-                      ),
+                if (queue.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 40),
+                    child: EmptyStateView(
+                      title: 'No patients scheduled today',
+                      message: 'Enjoy the quiet — your queue will appear here.',
+                      icon: Icons.event_available_outlined,
                     ),
+                  )
+                else
+                  for (var i = 0; i < queue.length; i++) ...[
+                    _DoctorQueueRow(
+                          appointment: queue[i],
+                          isActive: i == activeIndex,
+                        )
+                        .animate()
+                        .fadeIn(delay: (i * 50).ms, duration: 220.ms)
+                        .slideY(begin: 0.06, end: 0, curve: Curves.easeOut),
+                    const SizedBox(height: 10),
                   ],
-                ),
-              ),
-            ],
-          ],
+                if (waitingLong.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'Alerts',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: colors.warning.withValues(alpha: 0.08),
+                      border: Border.all(
+                        color: colors.warning.withValues(alpha: 0.35),
+                      ),
+                      borderRadius: BorderRadius.circular(AppRadii.card),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.schedule_rounded,
+                          size: 18,
+                          color: colors.warningText,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            '${waitingLong.length} patient${waitingLong.length == 1 ? '' : 's'} waiting 30+ minutes',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: colors.textPrimary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            );
+          },
         ),
       ),
     );
@@ -111,7 +156,11 @@ class DoctorDashboardPage extends ConsumerWidget {
 }
 
 class _HeaderCard extends StatelessWidget {
-  const _HeaderCard({required this.user, required this.room, required this.showSignOut});
+  const _HeaderCard({
+    required this.user,
+    required this.room,
+    required this.showSignOut,
+  });
 
   final AppUser user;
   final String? room;
@@ -134,12 +183,19 @@ class _HeaderCard extends StatelessWidget {
               children: [
                 Text(
                   'Good ${_greetingWord()}, ${user.fullName}',
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 19),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 19,
+                  ),
                 ),
                 const SizedBox(height: 3),
                 Text(
                   [DateFormatters.full(DateTime.now()), ?room].join(' · '),
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 12),
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.85),
+                    fontSize: 12,
+                  ),
                 ),
               ],
             ),
@@ -148,8 +204,15 @@ class _HeaderCard extends StatelessWidget {
             width: 38,
             height: 38,
             alignment: Alignment.center,
-            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), shape: BoxShape.circle),
-            child: const Icon(Icons.notifications_rounded, color: Colors.white, size: 18),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.18),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.notifications_rounded,
+              color: Colors.white,
+              size: 18,
+            ),
           ),
           if (showSignOut) ...[
             const SizedBox(width: 6),
@@ -212,7 +275,14 @@ class _StatCardsRow extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text('$value', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: color)),
+                Text(
+                  '$value',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: color,
+                  ),
+                ),
                 const SizedBox(height: 3),
                 Text(
                   label,
@@ -236,12 +306,18 @@ class _DoctorQueueRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
-    final patient = ref.watch(userProfileProvider(appointment.patientId)).valueOrNull;
-    final PatientProfile? profile = ref.watch(patientProfileProvider(appointment.patientId));
+    final patient = ref
+        .watch(userProfileProvider(appointment.patientId))
+        .valueOrNull;
+    final PatientProfile? profile = ref
+        .watch(patientProfileProvider(appointment.patientId))
+        .valueOrNull;
     final name = patient?.fullName ?? 'Patient';
     final status = QueueStatus.forAppointment(appointment);
     final age = profile?.age;
-    final genderInitial = (profile?.gender?.isNotEmpty ?? false) ? profile!.gender![0].toUpperCase() : '';
+    final genderInitial = (profile?.gender?.isNotEmpty ?? false)
+        ? profile!.gender![0].toUpperCase()
+        : '';
     final hasAllergies = profile != null && profile.allergies.isNotEmpty;
 
     return Container(
@@ -249,7 +325,11 @@ class _DoctorQueueRow extends ConsumerWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).cardTheme.color,
         borderRadius: BorderRadius.circular(AppRadii.card),
-        border: Border.all(color: isActive ? colors.clinicianAccent.withValues(alpha: 0.5) : colors.border),
+        border: Border.all(
+          color: isActive
+              ? colors.clinicianAccent.withValues(alpha: 0.5)
+              : colors.border,
+        ),
       ),
       child: Row(
         children: [
@@ -275,7 +355,10 @@ class _DoctorQueueRow extends ConsumerWidget {
                     if (hasAllergies)
                       _Tag(label: 'Allergy', color: colors.danger)
                     else if (!isActive)
-                      _Tag(label: status.label, color: _toneColor(colors, status.tone)),
+                      _Tag(
+                        label: status.label,
+                        color: _toneColor(colors, status.tone),
+                      ),
                   ],
                 ),
               ],
@@ -286,11 +369,21 @@ class _DoctorQueueRow extends ConsumerWidget {
               label: 'Start Visit',
               fullWidth: false,
               color: colors.clinicianAccent,
-              onPressed: () => context.push(RoutePaths.patientHistory(appointment.patientId, appointmentId: appointment.id)),
+              onPressed: () => context.push(
+                RoutePaths.patientHistory(
+                  appointment.patientId,
+                  appointmentId: appointment.id,
+                ),
+              ),
             )
           else
             TextButton(
-              onPressed: () => context.push(RoutePaths.patientHistory(appointment.patientId, appointmentId: appointment.id)),
+              onPressed: () => context.push(
+                RoutePaths.patientHistory(
+                  appointment.patientId,
+                  appointmentId: appointment.id,
+                ),
+              ),
               child: const Text('View'),
             ),
         ],
@@ -299,12 +392,12 @@ class _DoctorQueueRow extends ConsumerWidget {
   }
 
   Color _toneColor(AppSemanticColors colors, StatusTone tone) => switch (tone) {
-        StatusTone.success => colors.successText,
-        StatusTone.warning => colors.warningText,
-        StatusTone.danger => colors.danger,
-        StatusTone.info => colors.infoText,
-        StatusTone.neutral => colors.textSecondary,
-      };
+    StatusTone.success => colors.successText,
+    StatusTone.warning => colors.warningText,
+    StatusTone.danger => colors.danger,
+    StatusTone.info => colors.infoText,
+    StatusTone.neutral => colors.textSecondary,
+  };
 }
 
 class _Tag extends StatelessWidget {
@@ -321,7 +414,14 @@ class _Tag extends StatelessWidget {
         color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(6),
       ),
-      child: Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: color)),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          color: color,
+        ),
+      ),
     );
   }
 }

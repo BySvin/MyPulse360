@@ -8,30 +8,56 @@ import '../../domain/entities/time_slot.dart';
 import '../../domain/repositories/appointments_repository.dart';
 
 final appointmentsRepositoryProvider = Provider<AppointmentsRepository>((ref) {
-  return AppointmentsRepositoryImpl(MockAppointmentsDataSource(ref.watch(mockDatabaseProvider)));
+  return AppointmentsRepositoryImpl(
+    MockAppointmentsDataSource(ref.watch(mockDatabaseProvider)),
+  );
 });
 
-/// Bumped after booking/rescheduling/status changes so dependent providers
-/// (dashboard banner, appointments list, doctor queue) refresh together.
+/// Kept, not deleted.
+///
+/// Spec §7 calls for removing this once realtime replaces it, but scheduling
+/// and pharmacist providers still watch it and are still mock-backed. Deleting
+/// it now breaks their refresh. It goes in the cutover slice, when nothing
+/// mock-backed is left to need it.
 final appointmentsRevisionProvider = StateProvider<int>((ref) => 0);
 
-final patientAppointmentsProvider = Provider.family<List<Appointment>, String>((ref, patientId) {
-  ref.watch(appointmentsRevisionProvider);
-  return ref.watch(appointmentsRepositoryProvider).getForPatient(patientId);
-});
+final patientAppointmentsProvider =
+    FutureProvider.family<List<Appointment>, String>((ref, patientId) {
+      ref.watch(appointmentsRevisionProvider);
+      return ref.watch(appointmentsRepositoryProvider).getForPatient(patientId);
+    });
 
-final doctorAppointmentsProvider = Provider.family<List<Appointment>, String>((ref, doctorId) {
-  ref.watch(appointmentsRevisionProvider);
-  return ref.watch(appointmentsRepositoryProvider).getForDoctor(doctorId);
-});
+final doctorAppointmentsProvider =
+    FutureProvider.family<List<Appointment>, String>((ref, doctorId) {
+      ref.watch(appointmentsRevisionProvider);
+      return ref.watch(appointmentsRepositoryProvider).getForDoctor(doctorId);
+    });
 
-final nextUpcomingAppointmentProvider = Provider.family<Appointment?, String>((ref, patientId) {
-  ref.watch(appointmentsRevisionProvider);
-  return ref.watch(appointmentsRepositoryProvider).getNextUpcoming(patientId);
-});
+final nextUpcomingAppointmentProvider =
+    StreamProvider.family<Appointment?, String>((ref, patientId) {
+      return ref
+          .watch(appointmentsRepositoryProvider)
+          .watchNextUpcoming(patientId);
+    });
 
 final availableSlotsProvider =
-    Provider.family<List<TimeSlot>, ({String doctorId, DateTime date})>((ref, args) {
-  ref.watch(appointmentsRevisionProvider);
-  return ref.watch(appointmentsRepositoryProvider).getAvailableSlots(doctorId: args.doctorId, date: args.date);
-});
+    FutureProvider.family<List<TimeSlot>, ({String doctorId, DateTime date})>((
+      ref,
+      args,
+    ) {
+      ref.watch(appointmentsRevisionProvider);
+      return ref
+          .watch(appointmentsRepositoryProvider)
+          .getAvailableSlots(doctorId: args.doctorId, date: args.date);
+    });
+
+final monthAvailabilityProvider =
+    FutureProvider.family<
+      List<({DateTime day, int openSlots, bool isOnLeave})>,
+      ({String doctorId, DateTime month})
+    >((ref, args) {
+      ref.watch(appointmentsRevisionProvider);
+      return ref
+          .watch(appointmentsRepositoryProvider)
+          .getMonthAvailability(doctorId: args.doctorId, month: args.month);
+    });

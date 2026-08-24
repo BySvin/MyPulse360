@@ -39,7 +39,9 @@ class _ReschedulePageState extends ConsumerState<ReschedulePage> {
     final slot = _selectedSlot;
     if (slot == null) return;
     setState(() => _saving = true);
-    await ref.read(appointmentsRepositoryProvider).reschedule(widget.appointment.id, slot.dateTime);
+    await ref
+        .read(appointmentsRepositoryProvider)
+        .reschedule(widget.appointment.id, slot.dateTime);
     ref.read(appointmentsRevisionProvider.notifier).state++;
     if (!mounted) return;
     setState(() => _saving = false);
@@ -49,13 +51,26 @@ class _ReschedulePageState extends ConsumerState<ReschedulePage> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final doctor = ref.watch(userProfileProvider(widget.appointment.doctorId)).valueOrNull;
-    final slots = ref
-        .watch(availableSlotsProvider((doctorId: widget.appointment.doctorId, date: _selectedDate)))
-        .map((s) {
-      final selected = _selectedSlot != null && s.dateTime == _selectedSlot!.dateTime;
-      return s.copyWith(isSelected: selected);
-    }).toList();
+    final doctor = ref
+        .watch(userProfileProvider(widget.appointment.doctorId))
+        .valueOrNull;
+    final slots =
+        (ref
+                    .watch(
+                      availableSlotsProvider((
+                        doctorId: widget.appointment.doctorId,
+                        date: _selectedDate,
+                      )),
+                    )
+                    .valueOrNull ??
+                const <TimeSlot>[])
+            .map((s) {
+              final selected =
+                  _selectedSlot != null &&
+                  s.dateTime == _selectedSlot!.dateTime;
+              return s.copyWith(isSelected: selected);
+            })
+            .toList();
 
     return Scaffold(
       appBar: const LargeTitleAppBar(title: 'Reschedule'),
@@ -64,7 +79,10 @@ class _ReschedulePageState extends ConsumerState<ReschedulePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Select a new date', style: Theme.of(context).textTheme.titleSmall),
+            Text(
+              'Select a new date',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
             const SizedBox(height: 8),
             MonthCalendar(
               doctorId: widget.appointment.doctorId,
@@ -75,7 +93,10 @@ class _ReschedulePageState extends ConsumerState<ReschedulePage> {
               }),
             ),
             const SizedBox(height: 20),
-            Text('Available times', style: Theme.of(context).textTheme.titleSmall),
+            Text(
+              'Available times',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
             const SizedBox(height: 10),
             AppCard(
               child: slots.every((s) => s.isDisabled)
@@ -85,7 +106,10 @@ class _ReschedulePageState extends ConsumerState<ReschedulePage> {
                         slots.any((s) => s.isDoctorOnLeave)
                             ? '${doctor?.fullName ?? 'Your doctor'} is on leave this day. Please choose another date.'
                             : 'No slots available this day. Try another date.',
-                        style: TextStyle(color: colors.textSecondary, fontSize: 12),
+                        style: TextStyle(
+                          color: colors.textSecondary,
+                          fontSize: 12,
+                        ),
                       ),
                     )
                   : TimeSlotGrid(

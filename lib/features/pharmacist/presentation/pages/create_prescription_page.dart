@@ -24,16 +24,20 @@ class CreatePrescriptionPage extends ConsumerStatefulWidget {
   final String consultationId;
 
   @override
-  ConsumerState<CreatePrescriptionPage> createState() => _CreatePrescriptionPageState();
+  ConsumerState<CreatePrescriptionPage> createState() =>
+      _CreatePrescriptionPageState();
 }
 
-class _CreatePrescriptionPageState extends ConsumerState<CreatePrescriptionPage> {
+class _CreatePrescriptionPageState
+    extends ConsumerState<CreatePrescriptionPage> {
   final List<PrescriptionItem> _items = [];
   bool _submitting = false;
 
   Future<void> _submit(String patientId, String doctorId) async {
     setState(() => _submitting = true);
-    await ref.read(prescriptionsRepositoryProvider).create(
+    await ref
+        .read(prescriptionsRepositoryProvider)
+        .create(
           Prescription(
             id: '',
             patientId: patientId,
@@ -58,17 +62,25 @@ class _CreatePrescriptionPageState extends ConsumerState<CreatePrescriptionPage>
     final awaiting = ref.watch(awaitingPrescriptionProvider);
     final matches = awaiting.where((c) => c.id == widget.consultationId);
     if (matches.isEmpty) {
-      return const Scaffold(body: Center(child: Text('Consultation not found')));
+      return const Scaffold(
+        body: Center(child: Text('Consultation not found')),
+      );
     }
     final consultation = matches.first;
-    final patient = ref.watch(userProfileProvider(consultation.patientId)).valueOrNull;
-    final profile = ref.watch(patientProfileProvider(consultation.patientId));
+    final patient = ref
+        .watch(userProfileProvider(consultation.patientId))
+        .valueOrNull;
+    final profile = ref
+        .watch(patientProfileProvider(consultation.patientId))
+        .valueOrNull;
 
     final allMedNames = <String>{
       ...?profile?.currentMedications.map((m) => m.split(' ').first),
       ..._items.map((i) => i.medicationName),
     }.toList();
-    final interactions = ref.watch(prescriptionsRepositoryProvider).checkInteractions(allMedNames);
+    final interactions = ref
+        .watch(prescriptionsRepositoryProvider)
+        .checkInteractions(allMedNames);
 
     return Scaffold(
       appBar: const LargeTitleAppBar(title: 'New Prescription'),
@@ -80,15 +92,27 @@ class _CreatePrescriptionPageState extends ConsumerState<CreatePrescriptionPage>
             AppCard(
               child: Row(
                 children: [
-                  AvatarWidget(name: patient?.fullName ?? 'Patient', color: colors.clinicianAccent),
+                  AvatarWidget(
+                    name: patient?.fullName ?? 'Patient',
+                    color: colors.clinicianAccent,
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(patient?.fullName ?? 'Patient', style: Theme.of(context).textTheme.titleMedium),
+                        Text(
+                          patient?.fullName ?? 'Patient',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
                         if ((consultation.diagnosis ?? '').isNotEmpty)
-                          Text(consultation.diagnosis!, style: TextStyle(fontSize: 12, color: colors.textSecondary)),
+                          Text(
+                            consultation.diagnosis!,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: colors.textSecondary,
+                            ),
+                          ),
                       ],
                     ),
                   ),
@@ -109,10 +133,21 @@ class _CreatePrescriptionPageState extends ConsumerState<CreatePrescriptionPage>
                   children: [
                     Text(
                       'MEDICATION INFO FROM DOCTOR',
-                      style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, letterSpacing: 0.4, color: colors.textTertiary),
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.4,
+                        color: colors.textTertiary,
+                      ),
                     ),
                     const SizedBox(height: 4),
-                    Text(consultation.notes!, style: TextStyle(fontSize: 12.5, color: colors.textPrimary)),
+                    Text(
+                      consultation.notes!,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: colors.textPrimary,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -122,7 +157,9 @@ class _CreatePrescriptionPageState extends ConsumerState<CreatePrescriptionPage>
             const SizedBox(height: 20),
             Text('Medications', style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 8),
-            PrescriptionItemForm(onAdd: (item) => setState(() => _items.add(item))),
+            PrescriptionItemForm(
+              onAdd: (item) => setState(() => _items.add(item)),
+            ),
             DrugInteractionAlert(interactions: interactions),
             if (_items.isNotEmpty) ...[
               const SizedBox(height: 10),
@@ -131,7 +168,9 @@ class _CreatePrescriptionPageState extends ConsumerState<CreatePrescriptionPage>
                   contentPadding: EdgeInsets.zero,
                   dense: true,
                   title: Text('${item.medicationName} ${item.strength}'),
-                  subtitle: Text('${item.frequency} · ${item.durationDays} days'),
+                  subtitle: Text(
+                    '${item.frequency} · ${item.durationDays} days',
+                  ),
                   trailing: IconButton(
                     icon: const Icon(Icons.close, size: 18),
                     onPressed: () => setState(() => _items.remove(item)),
