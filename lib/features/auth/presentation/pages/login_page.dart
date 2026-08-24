@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../config/env/env.dart';
 import '../../../../config/router/role_nav_config.dart';
 import '../../../../config/router/route_paths.dart';
 import '../../../../config/theme/app_theme.dart';
@@ -11,6 +12,31 @@ import '../../../../shared/presentation/widgets/primary_button.dart';
 import '../../../patient/presentation/providers/patient_providers.dart';
 import '../providers/auth_providers.dart';
 import '../state/auth_state.dart';
+
+typedef _DemoPersona = ({String label, String email, String password});
+
+/// Accounts behind the quick sign-in chips.
+///
+/// These differ by backend and cannot be shared: the mock fixtures use one
+/// password for everyone, while the seeded Supabase rows use different
+/// addresses and a different password per role. Pointing the chips at the
+/// mock addresses while running against Supabase is a login failure with a
+/// misleading "email and password do not match".
+const List<_DemoPersona> _mockPersonas = [
+  (label: 'Sarah (Patient)', email: 'sarah@example.com', password: kDemoAccountPassword),
+  (label: 'Dr. Ahmed (Doctor)', email: 'dr.ahmed@mypulse360.clinic', password: kDemoAccountPassword),
+  (label: 'Fatima (Pharmacist)', email: 'fatima@mypulse360.clinic', password: kDemoAccountPassword),
+];
+
+/// Mirrors `supabase/seed.sql`. If the seed changes, change these too.
+const List<_DemoPersona> _supabasePersonas = [
+  (label: 'Aisha (Patient)', email: 'aisha.rahman@mypulse360.test', password: 'Patient123!'),
+  (label: 'Dr. Rashid (Doctor)', email: 'ahmed.rashid@mypulse360.test', password: 'Doctor123!'),
+  (label: 'Nur (Pharmacist)', email: 'nur.hakim@mypulse360.test', password: 'Pharma123!'),
+];
+
+const List<_DemoPersona> _demoPersonas =
+    Env.isMockMode ? _mockPersonas : _supabasePersonas;
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
@@ -37,9 +63,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     _handlePostAuth();
   }
 
-  Future<void> _quickSignIn(String email) async {
-    _emailController.text = email;
-    await ref.read(authControllerProvider.notifier).login(email: email, password: kDemoAccountPassword);
+  Future<void> _quickSignIn(_DemoPersona persona) async {
+    _emailController.text = persona.email;
+    _passwordController.text = persona.password;
+    await ref
+        .read(authControllerProvider.notifier)
+        .login(email: persona.email, password: persona.password);
     _handlePostAuth();
   }
 
@@ -134,9 +163,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  _PersonaChip(label: 'Sarah (Patient)', onTap: () => _quickSignIn('sarah@example.com')),
-                  _PersonaChip(label: 'Dr. Ahmed (Doctor)', onTap: () => _quickSignIn('dr.ahmed@mypulse360.clinic')),
-                  _PersonaChip(label: 'Fatima (Pharmacist)', onTap: () => _quickSignIn('fatima@mypulse360.clinic')),
+                  for (final persona in _demoPersonas)
+                    _PersonaChip(
+                      label: persona.label,
+                      onTap: () => _quickSignIn(persona),
+                    ),
                 ],
               ),
             ],

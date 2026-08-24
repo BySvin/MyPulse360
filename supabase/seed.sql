@@ -8,16 +8,26 @@ create or replace function pg_temp.seed_user(
   p_id uuid, p_email text, p_password text
 ) returns void language plpgsql as $$
 begin
+  -- The four token columns must be empty string, never NULL. GoTrue scans them
+  -- into non-nullable Go strings, so a NULL makes every sign-in fail with a 500
+  -- "Database error querying schema" *before* the password is checked — the
+  -- account looks correct in every SQL check and simply cannot log in. A
+  -- hand-written INSERT leaves them NULL; the admin API does not. The
+  -- `do update` repairs rows seeded before this was understood.
   insert into auth.users (
     instance_id, id, aud, role, email, encrypted_password,
     email_confirmed_at, created_at, updated_at,
-    raw_app_meta_data, raw_user_meta_data
+    raw_app_meta_data, raw_user_meta_data,
+    confirmation_token, recovery_token, email_change_token_new, email_change
   ) values (
     '00000000-0000-0000-0000-000000000000', p_id, 'authenticated', 'authenticated',
     p_email, extensions.crypt(p_password, extensions.gen_salt('bf')),
     now(), now(), now(),
-    '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb
-  ) on conflict (id) do nothing;
+    '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb,
+    '', '', '', ''
+  ) on conflict (id) do update set
+    confirmation_token = '', recovery_token = '',
+    email_change_token_new = '', email_change = '';
 
   insert into auth.identities (
     provider_id, user_id, identity_data, provider, last_sign_in_at, created_at, updated_at
