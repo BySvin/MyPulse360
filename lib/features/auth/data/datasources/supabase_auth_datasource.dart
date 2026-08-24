@@ -73,9 +73,16 @@ class SupabaseAuthDataSource implements AuthDataSource {
         await _client.auth.signOut();
         throw const DbFailure('That account has been deactivated.');
       }
+      // The two halves of the platform split. Staff work from the web
+      // dashboard; patients use the mobile app. Enforcing only one direction
+      // would let a patient reach a layout never designed for them.
       if (!isWebPlatform && user.role != UserRole.patient) {
         await _client.auth.signOut();
         throw const DbFailure('Staff accounts sign in on the web dashboard.');
+      }
+      if (isWebPlatform && user.role == UserRole.patient) {
+        await _client.auth.signOut();
+        throw const DbFailure('Patient accounts sign in through the MyPulse360 mobile app.');
       }
 
       return user;

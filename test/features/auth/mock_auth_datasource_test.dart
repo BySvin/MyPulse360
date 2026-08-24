@@ -44,7 +44,7 @@ void main() {
       final user = await dataSource.login(
         email: 'sam@example.com',
         password: 'Passw0rd1!',
-        isWebPlatform: true,
+        isWebPlatform: false,
       );
 
       expect(user.email, 'sam@example.com');
@@ -54,14 +54,14 @@ void main() {
       await dataSource.signUp(email: 'sam@example.com', password: 'Passw0rd1!', fullName: 'Sam');
 
       expect(
-        () => dataSource.login(email: 'sam@example.com', password: 'WrongPass1', isWebPlatform: true),
+        () => dataSource.login(email: 'sam@example.com', password: 'WrongPass1', isWebPlatform: false),
         throwsA(isA<AuthException>().having((e) => e.message, 'message', 'Invalid email or password.')),
       );
     });
 
     test('rejects an unknown email with the same generic message', () async {
       expect(
-        () => dataSource.login(email: 'ghost@example.com', password: 'whatever', isWebPlatform: true),
+        () => dataSource.login(email: 'ghost@example.com', password: 'whatever', isWebPlatform: false),
         throwsA(isA<AuthException>().having((e) => e.message, 'message', 'Invalid email or password.')),
       );
     });
@@ -71,7 +71,7 @@ void main() {
       await dataSource.setAccountActive(userId: user.id, isActive: false);
 
       expect(
-        () => dataSource.login(email: 'sam@example.com', password: 'Passw0rd1!', isWebPlatform: true),
+        () => dataSource.login(email: 'sam@example.com', password: 'Passw0rd1!', isWebPlatform: false),
         throwsA(isA<AuthException>()),
       );
     });
@@ -92,6 +92,32 @@ void main() {
 
       final user = await dataSource.login(email: doctor.email, password: 'Passw0rd1!', isWebPlatform: true);
       expect(user.role, UserRole.doctor);
+    });
+
+    test('rejects a patient account on the web dashboard (isWebPlatform: true)', () async {
+      await dataSource.signUp(
+        email: 'web.patient@example.com',
+        password: 'Passw0rd1!',
+        fullName: 'Web Patient',
+      );
+
+      // The mirror of the doctor rule. Patients belong in the mobile app; the
+      // web dashboard is laid out for staff and was never designed for them.
+      expect(
+        () => dataSource.login(
+          email: 'web.patient@example.com',
+          password: 'Passw0rd1!',
+          isWebPlatform: true,
+        ),
+        throwsA(isA<AuthException>()),
+      );
+
+      final user = await dataSource.login(
+        email: 'web.patient@example.com',
+        password: 'Passw0rd1!',
+        isWebPlatform: false,
+      );
+      expect(user.role, UserRole.patient);
     });
   });
 
