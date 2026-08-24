@@ -26,6 +26,10 @@ final todaysQueueProvider = StreamProvider.family<List<Appointment>, String>((
   ref,
   doctorId,
 ) {
+  // Against a real realtime stream this re-subscribe is cheap; against the
+  // mock's Stream.value(...) it's what makes the queue refresh at all —
+  // remove alongside appointmentsRevisionProvider in the cutover slice.
+  ref.watch(appointmentsRevisionProvider);
   return ref.watch(appointmentsRepositoryProvider).watchTodaysQueue(doctorId);
 });
 

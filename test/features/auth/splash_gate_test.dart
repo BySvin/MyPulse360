@@ -16,6 +16,7 @@ import 'package:mypulse360/features/auth/domain/entities/user_role.dart';
 import 'package:mypulse360/features/auth/presentation/pages/splash_page.dart';
 import 'package:mypulse360/features/auth/presentation/providers/auth_providers.dart';
 import 'package:mypulse360/features/auth/presentation/state/auth_state.dart';
+import 'package:mypulse360/features/patient/domain/entities/patient_profile.dart';
 import 'package:mypulse360/features/patient/presentation/providers/patient_providers.dart';
 
 /// A controllable stand-in for [AuthController]. Overriding `build()` means
@@ -40,6 +41,16 @@ const _patientUser = AppUser(
   clinicId: 'clinic-1',
 );
 
+const _onboardedProfile = PatientProfile(
+  id: 'patient-1',
+  heightCm: 170,
+  weightKg: 70,
+  allergies: [],
+  chronicConditions: [],
+  currentMedications: [],
+  assignedDoctorId: 'user-dr-ahmed',
+);
+
 void main() {
   testWidgets(
     'splash holds while the restore is loading and only navigates once it settles',
@@ -49,8 +60,14 @@ void main() {
       final router = GoRouter(
         initialLocation: RoutePaths.splash,
         routes: [
-          GoRoute(path: RoutePaths.splash, builder: (_, _) => const SplashPage()),
-          GoRoute(path: RoutePaths.login, builder: (_, _) => const Scaffold(body: Text('LOGIN'))),
+          GoRoute(
+            path: RoutePaths.splash,
+            builder: (_, _) => const SplashPage(),
+          ),
+          GoRoute(
+            path: RoutePaths.login,
+            builder: (_, _) => const Scaffold(body: Text('LOGIN')),
+          ),
           GoRoute(
             path: RoutePaths.patientDashboard,
             builder: (_, _) => const Scaffold(body: Text('DASHBOARD')),
@@ -65,7 +82,13 @@ void main() {
             authControllerProvider.overrideWith(() => fakeController),
             // Avoids depending on the mock patient repository/Hive for a
             // detail (onboarding status) unrelated to what this test checks.
-            onboardingCompleteProvider.overrideWith((ref, patientId) => true),
+            // splash_page.dart awaits patientProfileProvider(id).future to
+            // decide onboarding status, so it must resolve to a non-null
+            // profile here or the fake patient gets routed to onboarding
+            // instead of the dashboard, which is not what this test guards.
+            patientProfileProvider.overrideWith(
+              (ref, patientId) async => _onboardedProfile,
+            ),
           ],
           child: MaterialApp.router(routerConfig: router),
         ),

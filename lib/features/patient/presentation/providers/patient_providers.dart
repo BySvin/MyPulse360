@@ -31,12 +31,3 @@ final wellnessGoalsProvider = FutureProvider.family<List<WellnessGoal>, String>(
     return ref.watch(patientRepositoryProvider).getWellnessGoals(patientId);
   },
 );
-
-final onboardingCompleteProvider = Provider.family<bool, String>((
-  ref,
-  patientId,
-) {
-  // A profile that has not loaded yet is not "not onboarded" — treating it as
-  // false is what pinned real patients to the welcome screen in Plan 02.
-  return ref.watch(patientProfileProvider(patientId)).valueOrNull != null;
-});

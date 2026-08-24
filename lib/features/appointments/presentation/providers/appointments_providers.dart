@@ -35,6 +35,10 @@ final doctorAppointmentsProvider =
 
 final nextUpcomingAppointmentProvider =
     StreamProvider.family<Appointment?, String>((ref, patientId) {
+      // Same reasoning as todaysQueueProvider: the mock's Stream.value(...)
+      // only ever emits once, so this is what makes the banner refresh
+      // after booking/cancelling/reschedule until realtime replaces it.
+      ref.watch(appointmentsRevisionProvider);
       return ref
           .watch(appointmentsRepositoryProvider)
           .watchNextUpcoming(patientId);

@@ -309,9 +309,10 @@ class _DoctorQueueRow extends ConsumerWidget {
     final patient = ref
         .watch(userProfileProvider(appointment.patientId))
         .valueOrNull;
-    final PatientProfile? profile = ref
-        .watch(patientProfileProvider(appointment.patientId))
-        .valueOrNull;
+    final profileAsync = ref.watch(
+      patientProfileProvider(appointment.patientId),
+    );
+    final PatientProfile? profile = profileAsync.valueOrNull;
     final name = patient?.fullName ?? 'Patient';
     final status = QueueStatus.forAppointment(appointment);
     final age = profile?.age;
@@ -319,6 +320,11 @@ class _DoctorQueueRow extends ConsumerWidget {
         ? profile!.gender![0].toUpperCase()
         : '';
     final hasAllergies = profile != null && profile.allergies.isNotEmpty;
+    // While the profile is still loading, a patient WITH allergies is
+    // indistinguishable from one without — don't fall through to the status
+    // tag in that window, since that reads as an (unverified) "no
+    // allergies". Render neither tag until the profile settles.
+    final profileSettled = !profileAsync.isLoading;
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -354,7 +360,7 @@ class _DoctorQueueRow extends ConsumerWidget {
                   children: [
                     if (hasAllergies)
                       _Tag(label: 'Allergy', color: colors.danger)
-                    else if (!isActive)
+                    else if (profileSettled && !isActive)
                       _Tag(
                         label: status.label,
                         color: _toneColor(colors, status.tone),

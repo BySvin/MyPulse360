@@ -32,11 +32,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   Future<void> _submit() async {
     await ref
         .read(authControllerProvider.notifier)
-        .login(email: _emailController.text, password: _passwordController.text);
-    _handlePostAuth();
+        .login(
+          email: _emailController.text,
+          password: _passwordController.text,
+        );
+    await _handlePostAuth();
   }
 
-  void _handlePostAuth() {
+  Future<void> _handlePostAuth() async {
     final state = ref.read(authControllerProvider);
     if (state is! AuthAuthenticated || !mounted) return;
     final user = state.user;
@@ -44,9 +47,15 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       context.go(RoutePaths.forcePasswordChange);
       return;
     }
-    if (user.role.name == 'patient' && !ref.read(onboardingCompleteProvider(user.id))) {
-      context.go(RoutePaths.onboardingWellnessGoals);
-      return;
+    // Await the settled profile rather than sampling whatever the
+    // FutureProvider currently holds — see splash_page.dart for why.
+    if (user.role.name == 'patient') {
+      final profile = await ref.read(patientProfileProvider(user.id).future);
+      if (!mounted) return;
+      if (profile == null) {
+        context.go(RoutePaths.onboardingWellnessGoals);
+        return;
+      }
     }
     context.go(kRoleNavConfig[user.role]!.rootPath);
   }
@@ -76,13 +85,21 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 width: 52,
                 height: 52,
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [colors.success, colors.info]),
+                  gradient: LinearGradient(
+                    colors: [colors.success, colors.info],
+                  ),
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: const Icon(Icons.monitor_heart_outlined, color: Colors.white),
+                child: const Icon(
+                  Icons.monitor_heart_outlined,
+                  color: Colors.white,
+                ),
               ),
               const SizedBox(height: 20),
-              Text('Welcome back', style: Theme.of(context).textTheme.headlineMedium),
+              Text(
+                'Welcome back',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
               const SizedBox(height: 4),
               Text(
                 'Sign in to continue to MyPulse360',
@@ -103,7 +120,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 autofillHints: const [AutofillHints.password],
               ),
               const SizedBox(height: 24),
-              PrimaryButton(label: 'Sign In', onPressed: _submit, loading: loading),
+              PrimaryButton(
+                label: 'Sign In',
+                onPressed: _submit,
+                loading: loading,
+              ),
               const SizedBox(height: 12),
               Center(
                 child: TextButton(

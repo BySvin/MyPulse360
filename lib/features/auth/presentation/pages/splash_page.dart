@@ -52,9 +52,17 @@ class _SplashPageState extends ConsumerState<SplashPage> {
       context.go(RoutePaths.forcePasswordChange);
       return;
     }
-    if (user.role.name == 'patient' && !ref.read(onboardingCompleteProvider(user.id))) {
-      context.go(RoutePaths.onboardingWellnessGoals);
-      return;
+    // Await the settled profile rather than sampling whatever the FutureProvider
+    // currently holds — a still-loading profile is not "no profile", and
+    // treating it as one is what sends an already-onboarded patient back
+    // through onboarding on every launch.
+    if (user.role.name == 'patient') {
+      final profile = await ref.read(patientProfileProvider(user.id).future);
+      if (!mounted) return;
+      if (profile == null) {
+        context.go(RoutePaths.onboardingWellnessGoals);
+        return;
+      }
     }
     context.go(kRoleNavConfig[user.role]!.rootPath);
   }
@@ -81,7 +89,11 @@ class _SplashPageState extends ConsumerState<SplashPage> {
                   color: Colors.white.withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Icon(Icons.monitor_heart_outlined, color: Colors.white, size: 36),
+                child: const Icon(
+                  Icons.monitor_heart_outlined,
+                  color: Colors.white,
+                  size: 36,
+                ),
               ),
               const SizedBox(height: 20),
               const Text(
@@ -96,7 +108,10 @@ class _SplashPageState extends ConsumerState<SplashPage> {
               const SizedBox(height: 6),
               Text(
                 'Your health journey, in your pocket',
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 13),
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.85),
+                  fontSize: 13,
+                ),
               ),
             ],
           ),

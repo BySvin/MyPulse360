@@ -137,30 +137,68 @@ class _MonthCalendarState extends ConsumerState<MonthCalendar> {
             ],
           ),
           const SizedBox(height: 4),
-          GridView.count(
-            crossAxisCount: 7,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            children: [
-              for (var i = 0; i < totalCells; i++)
-                _buildDayCell(
-                  context,
-                  gridStart.add(Duration(days: i)),
-                  todayDay,
-                  monthByDay[_dayKey(gridStart.add(Duration(days: i)))],
-                ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 16,
-            runSpacing: 4,
-            children: [
-              _LegendDot(color: colors.success, label: 'Slots available'),
-              _LegendDot(color: colors.textTertiary, label: 'Unavailable'),
-              _LegendDot(color: colors.danger, label: 'Doctor on leave'),
-            ],
-          ),
+          // A failed month load must read as a failure, not as a quiet
+          // "everything is unavailable" — that's indistinguishable from a
+          // still-loading month otherwise: dotless cells, disabled taps, no
+          // message, no way to recover short of leaving the page.
+          if (month.hasError)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.cloud_off_outlined,
+                    color: colors.textTertiary,
+                    size: 28,
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    '${month.error}',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: colors.textSecondary,
+                      fontSize: 12.5,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: () => ref.invalidate(
+                      monthAvailabilityProvider((
+                        doctorId: widget.doctorId,
+                        month: _displayedMonth,
+                      )),
+                    ),
+                    child: const Text('Try again'),
+                  ),
+                ],
+              ),
+            )
+          else ...[
+            GridView.count(
+              crossAxisCount: 7,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              children: [
+                for (var i = 0; i < totalCells; i++)
+                  _buildDayCell(
+                    context,
+                    gridStart.add(Duration(days: i)),
+                    todayDay,
+                    monthByDay[_dayKey(gridStart.add(Duration(days: i)))],
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 16,
+              runSpacing: 4,
+              children: [
+                _LegendDot(color: colors.success, label: 'Slots available'),
+                _LegendDot(color: colors.textTertiary, label: 'Unavailable'),
+                _LegendDot(color: colors.danger, label: 'Doctor on leave'),
+              ],
+            ),
+          ],
         ],
       ),
     );

@@ -93,8 +93,9 @@ class AuthController extends Notifier<AuthState> {
 
   /// Everything except auth still reads the in-memory mock, and that store is
   /// keyed by user id. A Supabase-backed patient carries a real UUID the mock
-  /// has never seen, so `onboardingCompleteProvider` reports "not onboarded"
-  /// forever and the router pins them to the welcome screen.
+  /// has never seen, so `patientProfileProvider` never resolves a profile for
+  /// them and the router/post-login redirect both read that as "not
+  /// onboarded", pinning them to the welcome screen forever.
   ///
   /// This lives here rather than in the sign-up page because it must also run
   /// on login and on a restored session: the mock resets on relaunch, so
