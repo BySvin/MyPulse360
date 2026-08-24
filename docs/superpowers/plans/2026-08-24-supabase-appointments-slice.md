@@ -101,13 +101,28 @@ where n.nspname = 'public' and p.proname = 'month_availability'
   and p.prosecdef and array_to_string(p.proconfig, ',') like '%search_path=public, pg_temp%';
 
 -- anon must not be able to call it.
-select case when count(*) = 0 then 'PASS' else 'FAIL: anon can execute month_availability' end as status
-from information_schema.role_routine_grants
-where routine_schema = 'public' and routine_name = 'month_availability' and grantee = 'anon';
+--
+-- NOTE: do NOT write this as a `role_routine_grants ... grantee = 'anon'`
+-- lookup. Postgres grants EXECUTE to PUBLIC implicitly on function creation,
+-- and that surfaces as grantee 'PUBLIC', never 'anon' — so a catalog check
+-- passes even when anon *can* execute. Ask the privilege system directly.
+select case when not has_function_privilege('anon', 'public.month_availability(uuid,date)', 'execute')
+            then 'PASS' else 'FAIL: anon can execute month_availability' end as status;
 
--- A weekday in a seeded month must report open slots for Dr. Rashid.
-select case when count(*) >= 20 then 'PASS' else 'FAIL: only ' || count(*) || ' days returned' end as status
-from public.month_availability('22222222-2222-2222-2222-222222222221'::uuid, date_trunc('month', current_date + interval '1 month')::date);
+-- The function must return every day of the month, weekends included.
+--
+-- NOTE: do NOT assert `count(*) >= 20`. A bug that dropped weekends returns
+-- ~22 weekday rows and passes. Compare against the month's real length, and
+-- derive both halves from the same month so they cannot drift apart.
+-- See the committed supabase/tests/0022_month_availability_test.sql for the
+-- exact lateral-subquery form that compiles; a bare `count(*)` next to the
+-- month column raises 42803.
+select case when actual.rows = expected.days then 'PASS'
+            else 'FAIL: ' || actual.rows || ' rows for a month of ' || expected.days || ' days' end as status
+from (select date_trunc('month', current_date + interval '1 month')::date as d) m,
+     lateral (select count(*)::int as rows
+              from public.month_availability('22222222-2222-2222-2222-222222222221'::uuid, m.d)) actual,
+     lateral (select extract(day from (m.d + interval '1 month - 1 day'))::int as days) expected;
 ```
 
 - [ ] **Step 2: Run each assertion separately and confirm RED**
