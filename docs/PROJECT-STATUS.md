@@ -1,6 +1,6 @@
 # MyPulse360 — project status
 
-**As of 2026-08-24.** A factual account of what is built, what is not, and how
+**As of 2026-08-25.** A factual account of what is built, what is not, and how
 it was verified. Written to be quoted from in a report.
 
 ---
@@ -22,9 +22,9 @@ Function.
 |---|---|
 | Tables | 27, every one with row-level security enabled |
 | Enum types | 14, mirroring the Dart domain enums |
-| Server-side functions | 15, all `SECURITY DEFINER` with a pinned `search_path` |
+| Server-side functions | 16, all `SECURITY DEFINER` with a pinned `search_path` |
 | Edge Functions | 1 (`create-staff-account`) |
-| Migrations | 22 |
+| Migrations | 23 |
 | SQL test files | 22 |
 
 **The authorization model.** Row-level security decides *which rows* a caller
@@ -46,20 +46,27 @@ that could insert its own profile row could name its own role.
   transaction.
 - Queue position is derived, never stored, so it cannot go stale on a cancel.
 
-### Application — auth slice complete
+### Application — auth, appointments and patient profile complete
 
 Authentication, sign-up, session restore, forced password change, patient and
 staff profiles, staff provisioning and account activation all run against
-Postgres. `flutter analyze` is clean and **100 Dart tests pass**.
+Postgres — and as of the appointments slice, so do **appointment booking,
+rescheduling, cancellation, slot availability and the patient health profile**.
+
+Two things are genuinely live over Postgres realtime: the patient's next
+upcoming appointment and the doctor's queue for today. Reads are `FutureProvider`s
+and every screen renders its `AsyncValue` through one shared widget, so a value
+that has not loaded is never drawn as though it were an answer.
+
+`flutter analyze` is clean and **116 Dart tests pass**.
 
 ### Not yet migrated
 
-Appointments, prescriptions, health metrics, pharmacy inventory, staff
-scheduling and the chatbot still run against an in-memory mock. This is a
-sequenced migration, not an oversight: `docs/superpowers/specs/2026-08-22-supabase-backend-design.md`
-§9 defines nine slices, three of which are done and the fourth
-(`docs/superpowers/plans/2026-08-24-supabase-appointments-slice.md`) is written
-and ready to execute.
+Prescriptions, health metrics, pharmacy inventory, staff scheduling and the
+chatbot still run against an in-memory mock. This is a sequenced migration, not
+an oversight: `docs/superpowers/specs/2026-08-22-supabase-backend-design.md`
+§9 defines nine slices, four of which are now done. Plan 04 takes prescriptions
+and consultations next.
 
 The mock is retained deliberately as the test double and as an offline demo
 mode, not as dead code.
@@ -70,7 +77,7 @@ mode, not as dead code.
 
 Verification was treated as part of the work rather than a final step.
 
-**Automated.** 100 Dart tests; 22 SQL test files including a cross-tenant
+**Automated.** 116 Dart tests; 22 SQL test files including a cross-tenant
 isolation suite that signs in as one patient and asserts they cannot read
 another's records — with a counter-check proving the other patient's rows exist,
 so the assertion cannot pass merely because a table is empty.
@@ -87,7 +94,7 @@ being accepted, then the whole branch was reviewed as a system.
 
 ## Defects found and fixed before release
 
-Sixteen across the project. The eight that mattered most:
+Twenty-three across the project. The ten that mattered most:
 
 | Defect | Why it mattered |
 |---|---|
@@ -99,9 +106,15 @@ Sixteen across the project. The eight that mattered most:
 | Every seeded account was unable to log in | Hand-written `auth.users` rows left columns NULL that GoTrue reads as non-nullable |
 | A patient could reach the staff web dashboard | Layout never designed for them |
 | Any doctor at any clinic could reassign any patient's care team | Cross-tenant write |
+| The appointments datasource was correct but wired to nothing | The whole slice was dead code; the plan put the wiring in an earlier task that ran before the datasource existed |
+| Deleting an account reported success without deleting anything | A table-level DELETE grant with no DELETE policy matches zero rows and returns success under RLS |
 
-Four of these were only visible when two individually-correct changes met, which
-is why the whole-branch review exists as a separate step.
+**Nine of the twenty-three were only visible where two individually-correct
+changes met** —
+a datasource nothing constructed, a wiring change that made three unguarded call
+sites live, a deletion that would have broken sign-up in the offline demo. That
+is why each unit is reviewed against its specification *and* the branch is then
+reviewed again as a whole; neither step alone finds them.
 
 **Three defective tests were also caught** — each by refusing to make a red
 assertion green without understanding it. One could never pass at all
@@ -115,16 +128,23 @@ rows at all).
 
 Stated plainly rather than hidden.
 
-1. **Only the auth slice is Postgres-backed.** Six features remain on the mock.
-2. **A deactivated staff member keeps a valid session until their token expires**
+1. **Five features remain on the mock** — prescriptions, health metrics,
+   pharmacy inventory, staff scheduling and the chatbot.
+2. **Appointment slots are generated in UTC.** The database's timezone is UTC,
+   so the clinic's "9:00 AM" slot is 09:00 UTC — 5 PM in Malaysia. The app never
+   converts an appointment time to local, so the system is self-consistent (a
+   patient picks "9:00" and sees "9:00") and this is invisible in the demo. But
+   clinic hours are effectively UTC hours, and the doctor's "today's queue"
+   buckets by the UTC day. A real deployment needs a configured clinic timezone.
+3. **A deactivated staff member keeps a valid session until their token expires**
    (one hour). `is_active` is checked at sign-in, not on every request.
-3. **No account erasure.** Eight foreign keys reference `profiles` with
+4. **No account erasure.** Eight foreign keys reference `profiles` with
    `NO ACTION`, so a user with any history cannot be deleted. `is_active` is the
    intended soft-delete; a GDPR erasure path is not implemented.
-4. **The two routing fixes in the auth slice rest on code review**, not tests.
-5. **Migration filenames do not match their applied versions.** Run
+5. **The two routing fixes in the auth slice rest on code review**, not tests.
+6. **Migration filenames do not match their applied versions.** Run
    `supabase migration repair --status applied <version>` before any `db push`.
-6. **Self-service sign-up needs email confirmation disabled** in the project's
+7. **Self-service sign-up needs email confirmation disabled** in the project's
    auth settings; see `docs/DEMO.md`.
 
 ---
@@ -133,7 +153,7 @@ Stated plainly rather than hidden.
 
 | Path | What it holds |
 |---|---|
-| `supabase/migrations/` | 22 migrations, in order |
+| `supabase/migrations/` | 23 migrations, in order |
 | `supabase/tests/` | SQL assertions, including the isolation suite |
 | `supabase/functions/create-staff-account/` | The one server-side function |
 | `lib/features/*/data/datasources/` | Paired mock and Supabase implementations |

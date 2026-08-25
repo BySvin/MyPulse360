@@ -50,11 +50,17 @@ for the patient, a browser for staff.
 flutter run -d chrome
 ```
 
-**Patient (mobile):**
+**Patient (mobile, or any non-web target):**
 
 ```bash
-flutter run
+flutter run -d windows
 ```
+
+Patients are blocked from the web dashboard on purpose, so the patient app must
+run on a non-web target. Windows desktop is the quickest one to demo from a
+laptop; `flutter run` with a phone or emulator attached works identically. The
+gate is a role check at sign-in, not a UI hint — a patient signing in on web is
+signed straight back out with a message telling them to use the mobile app.
 
 **Fully offline fallback** — if the venue's wifi is unreliable, this runs the
 entire app against the in-memory mock with no network at all, all three roles in
@@ -96,9 +102,23 @@ They are forced to set their own password before reaching any dashboard. The
 `must_change_password` flag driving that is **not writable by any client** — it
 clears through a dedicated server-side function.
 
-### 4. Sign in as a patient (mobile)
+### 4. Sign in as a patient (non-web) and book an appointment
 
-Shows the platform split, and the patient dashboard.
+Shows the platform split, the patient dashboard, and the part of the system
+with the most machinery behind it.
+
+Open **Book Appointment**. The month calendar costs **one** database call, not
+one per day — there is a test asserting exactly that
+(`test/features/appointments/month_calendar_request_count_test.dart`), because
+the saving is invisible from the screen.
+
+Pick a day, pick a slot, confirm. Then look back at the doctor's window: the
+booking appears in their queue **without a refresh**.
+
+If you want to show the concurrency guarantee, book the same slot twice — the
+second attempt is refused by a database constraint, not by application code,
+and the patient is told "That time slot was just taken. Please pick another."
+while the grid refreshes to the truth.
 
 ### 5. If asked "how do you know a patient can't read another patient's data?"
 
@@ -126,14 +146,32 @@ documented.
 - Authentication, sessions, sign-up, forced password change
 - Patient / doctor / pharmacist profiles and the clinic directory
 - Staff provisioning and account activation
-- All 27 tables, row-level security, 15 server-side functions
+- **Appointment booking, rescheduling, cancellation and slot availability**
+- **The patient health profile and wellness goals**
+- All 27 tables, row-level security, 16 server-side functions
 
-**Still on the in-memory mock:** appointments, prescriptions, health metrics,
-pharmacy inventory, staff scheduling, and the chatbot.
+Two things update **without a refresh**, over Postgres realtime: the patient's
+next upcoming appointment, and the doctor's queue for today.
 
-So the doctor's queue shows mock-seeded patients rather than the ones in
-Postgres. That is expected at this stage — `docs/superpowers/specs/` sequences
-the remaining slices, and Plan 03 (appointments) is written and ready.
+**Still on the in-memory mock:** prescriptions, health metrics, pharmacy
+inventory, staff scheduling, and the chatbot.
+
+`docs/superpowers/specs/` sequences the remaining slices; Plan 04 takes
+prescriptions and consultations next.
+
+### Two things worth knowing before you demo
+
+**The doctor's queue may be empty, and that is correct.** It shows appointments
+scheduled for *today*. The seeded data has one appointment, and it is not today.
+Book one from the patient app first and watch it appear in the doctor's queue
+without a refresh — that is the realtime path, and an empty queue beforehand is
+the honest starting state rather than a failure.
+
+**Slots are generated in UTC.** The clinic's "9:00 AM" slot is 09:00 UTC. The
+app never converts to local time, so a patient picks "9:00" and sees "9:00"
+everywhere — it is self-consistent — but a real deployment would need a
+configured clinic timezone. It is listed in `docs/PROJECT-STATUS.md` under
+Known limitations.
 
 ---
 
