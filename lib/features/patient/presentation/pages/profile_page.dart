@@ -52,7 +52,15 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       isDestructive: true,
     );
     if (confirmed && mounted) {
-      await ref.read(patientRepositoryProvider).deleteAccount(patientId);
+      try {
+        await ref.read(patientRepositoryProvider).deleteAccount(patientId);
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text('$e')));
+        return;
+      }
       await ref.read(authControllerProvider.notifier).logout();
       if (mounted) context.go(RoutePaths.login);
     }

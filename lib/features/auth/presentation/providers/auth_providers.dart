@@ -84,24 +84,27 @@ class AuthController extends Notifier<AuthState> {
         state = const AuthUnauthenticated();
         return;
       }
-      await _ensureLocalPatientProfile(user);
+      await _ensureMockPatientProfile(user);
       state = AuthAuthenticated(user);
     } catch (e) {
       state = AuthError(e.toString());
     }
   }
 
-  /// Everything except auth still reads the in-memory mock, and that store is
-  /// keyed by user id. A Supabase-backed patient carries a real UUID the mock
-  /// has never seen, so `patientProfileProvider` never resolves a profile for
-  /// them and the router/post-login redirect both read that as "not
-  /// onboarded", pinning them to the welcome screen forever.
+  /// Exists only because the mock has no equivalent of `register_patient()`
+  /// (`supabase/migrations/0018_register_patient.sql`), which inserts the
+  /// `patient_profiles` row and assigns the default doctor in the same
+  /// transaction as sign-up, in Supabase mode. In mock mode nothing else
+  /// creates that row — none of the onboarding pages do (they only call
+  /// `updateProfile`, which throws `StateError('Patient profile not found')`
+  /// against an absent row) — so without this a newly signed-up mock patient
+  /// would reach onboarding step 2 and crash.
   ///
   /// This lives here rather than in the sign-up page because it must also run
   /// on login and on a restored session: the mock resets on relaunch, so
-  /// creating the row once at registration does not survive. Plan 03 removes
-  /// this entirely when the patient feature moves to Postgres.
-  Future<void> _ensureLocalPatientProfile(AppUser user) async {
+  /// creating the row once at registration does not survive.
+  Future<void> _ensureMockPatientProfile(AppUser user) async {
+    if (!Env.isMockMode) return;
     if (user.role != UserRole.patient) return;
     final existing = await ref.read(patientProfileProvider(user.id).future);
     if (existing != null) return;
@@ -125,7 +128,7 @@ class AuthController extends Notifier<AuthState> {
       if (Env.isMockMode) {
         await _box.put(HiveBoxes.keyCurrentUserId, user.id);
       }
-      await _ensureLocalPatientProfile(user);
+      await _ensureMockPatientProfile(user);
       state = AuthAuthenticated(user);
     } catch (e) {
       state = AuthError(e.toString());
@@ -145,7 +148,7 @@ class AuthController extends Notifier<AuthState> {
       if (Env.isMockMode) {
         await _box.put(HiveBoxes.keyCurrentUserId, user.id);
       }
-      await _ensureLocalPatientProfile(user);
+      await _ensureMockPatientProfile(user);
       state = AuthAuthenticated(user);
     } catch (e) {
       state = AuthError(e.toString());
