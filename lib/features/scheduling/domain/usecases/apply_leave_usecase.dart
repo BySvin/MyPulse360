@@ -15,6 +15,34 @@ class ApplyLeaveResult {
   final List<Appointment> cancelledAppointments;
 }
 
+/// The leave was filed, but the per-appointment cancellation loop failed
+/// partway through a real network call. Deliberately not rolled back — the
+/// leave is legitimately on record, and silently undoing it would hide a
+/// true fact to paper over a different failure. The caller must be told the
+/// operation only partially succeeded so the doctor knows to re-check who
+/// still thinks they have an appointment.
+class LeaveAppointmentCancellationException implements Exception {
+  const LeaveAppointmentCancellationException({
+    required this.leave,
+    required this.cancelledAppointments,
+    required this.uncancelledAppointments,
+    required this.cause,
+  });
+
+  final LeaveRequest leave;
+  final List<Appointment> cancelledAppointments;
+  final List<Appointment> uncancelledAppointments;
+  final Object cause;
+
+  @override
+  String toString() =>
+      'Leave was filed, but ${uncancelledAppointments.length} of '
+      '${cancelledAppointments.length + uncancelledAppointments.length} '
+      'affected appointment(s) could not be cancelled ($cause). '
+      'Re-check the queue — some patients may still think they have an '
+      'appointment.';
+}
+
 /// Books a doctor's leave and keeps the booking side in sync with it.
 ///
 /// Two things have to happen for "on leave" to be true from a patient's
@@ -49,14 +77,31 @@ class ApplyLeaveUseCase {
       autoApprove: true,
     );
 
+    final cancelled = <Appointment>[];
     for (final appointment in affected) {
-      await _appointments.updateStatus(
-        appointment.id,
-        AppointmentStatus.cancelled,
-      );
+      try {
+        await _appointments.updateStatus(
+          appointment.id,
+          AppointmentStatus.cancelled,
+        );
+        cancelled.add(appointment);
+      } catch (e) {
+        // The leave is already filed and some appointments may already be
+        // cancelled — both real, neither reversible here. Surface exactly
+        // what happened rather than losing the partial success in a generic
+        // rethrow.
+        throw LeaveAppointmentCancellationException(
+          leave: leave,
+          cancelledAppointments: cancelled,
+          uncancelledAppointments: affected
+              .skip(cancelled.length)
+              .toList(),
+          cause: e,
+        );
+      }
     }
 
-    return ApplyLeaveResult(leave: leave, cancelledAppointments: affected);
+    return ApplyLeaveResult(leave: leave, cancelledAppointments: cancelled);
   }
 
   /// Still-live appointments for [doctorId] between [startDate] and

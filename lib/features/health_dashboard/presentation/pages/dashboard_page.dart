@@ -6,6 +6,7 @@ import '../../../../config/router/route_paths.dart';
 import '../../../../config/theme/app_colors.dart';
 import '../../../../config/theme/app_radii.dart';
 import '../../../../config/theme/app_theme.dart';
+import '../../../../shared/presentation/widgets/async_section.dart';
 import '../../../../shared/presentation/widgets/section_header.dart';
 import '../../../../shared/utils/date_formatters.dart';
 import '../../../appointments/presentation/pages/book_appointment_page.dart';
@@ -35,12 +36,12 @@ class DashboardPage extends ConsumerWidget {
     final user = ref.watch(currentUserProvider);
     if (user == null) return const SizedBox.shrink();
 
-    final goals = ref.watch(wellnessGoalsProvider(user.id)).valueOrNull ?? [];
-    final profile = ref.watch(patientProfileProvider(user.id)).valueOrNull;
+    // Read as AsyncValue, not `.valueOrNull` — this page makes claims
+    // ("No goals yet", the insight cards) that must wait for a settled
+    // value rather than collapsing a loading/errored fetch into "empty".
+    final goalsAsync = ref.watch(wellnessGoalsProvider(user.id));
+    final profileAsync = ref.watch(patientProfileProvider(user.id));
     final vitals = ref.watch(dashboardSummariesProvider(user.id));
-    final insights = profile == null
-        ? const <HealthInsight>[]
-        : buildHealthInsights(profile, goals, vitals: vitals);
     final nextAppointment = ref
         .watch(nextUpcomingAppointmentProvider(user.id))
         .valueOrNull;
@@ -124,26 +125,45 @@ class DashboardPage extends ConsumerWidget {
                 ),
               ],
             ),
-            if (profile != null) ...[
-              const SizedBox(height: 20),
-              HealthSnapshotCard(profile: profile),
-            ],
-            if (insights.isNotEmpty) ...[
-              const SizedBox(height: 20),
-              Text(
-                'Wellness Insights',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 10),
-              Column(
-                children: [
-                  for (final insight in insights) ...[
-                    WellnessInsightCard(insight: insight),
-                    const SizedBox(height: 8),
+            // The snapshot card and insight list both make claims derived
+            // from the profile (and, for insights, goals). Neither may
+            // render until the profile fetch has settled — a still-loading
+            // profile is not "no profile", and rendering nothing/wrong
+            // during that window is what finding 2 flagged.
+            AsyncSection(
+              value: profileAsync,
+              data: (profile) {
+                if (profile == null) return const SizedBox.shrink();
+                final insights = buildHealthInsights(
+                  profile,
+                  goalsAsync.valueOrNull ?? [],
+                  vitals: vitals,
+                );
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 20),
+                    HealthSnapshotCard(profile: profile),
+                    if (insights.isNotEmpty) ...[
+                      const SizedBox(height: 20),
+                      Text(
+                        'Wellness Insights',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 10),
+                      Column(
+                        children: [
+                          for (final insight in insights) ...[
+                            WellnessInsightCard(insight: insight),
+                            const SizedBox(height: 8),
+                          ],
+                        ],
+                      ),
+                    ],
                   ],
-                ],
-              ),
-            ],
+                );
+              },
+            ),
             const SizedBox(height: 24),
             SectionHeader(
               title: 'Health Tips',
@@ -166,23 +186,33 @@ class DashboardPage extends ConsumerWidget {
             const SizedBox(height: 24),
             SectionHeader(
               title: 'Your Goals This Week',
-              actionLabel: goals.isEmpty ? null : 'See all',
+              // Hiding the shortcut while unsettled is a safe default (it
+              // declines to act), unlike the "No goals yet" text below,
+              // which would be a false claim if shown before goals load.
+              actionLabel: (goalsAsync.valueOrNull?.isEmpty ?? true)
+                  ? null
+                  : 'See all',
             ),
             const SizedBox(height: 10),
-            if (goals.isEmpty)
-              Text(
-                'No goals yet — add some from your profile.',
-                style: TextStyle(color: colors.textSecondary, fontSize: 12),
-              )
-            else
-              Column(
-                children: [
-                  for (final goal in goals) ...[
-                    WellnessGoalRow(goal: goal),
-                    const SizedBox(height: 10),
-                  ],
-                ],
-              ),
+            AsyncSection(
+              value: goalsAsync,
+              data: (goals) => goals.isEmpty
+                  ? Text(
+                      'No goals yet — add some from your profile.',
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    )
+                  : Column(
+                      children: [
+                        for (final goal in goals) ...[
+                          WellnessGoalRow(goal: goal),
+                          const SizedBox(height: 10),
+                        ],
+                      ],
+                    ),
+            ),
             const SizedBox(height: 6),
             if (nextAppointment != null &&
                 nextAppointment.scheduledAt.year == now.year &&

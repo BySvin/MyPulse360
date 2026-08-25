@@ -93,10 +93,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
 
       // Don't answer the onboarding question until the answer has arrived.
-      // A profile that is still loading is not "not onboarded" — treating it
-      // as false is what pinned real patients to the welcome screen before.
+      // A profile that is still loading — or one whose fetch failed — is not
+      // "not onboarded"; treating either as false is what pinned real
+      // patients to the welcome screen before. Loading and failed are both
+      // "unknown", and only a settled value may decide this. On failure,
+      // splash_page.dart already routes to login and login_page.dart shows
+      // the error, so the router just needs to stay out of their way.
       final profileAsync = ref.read(patientProfileProvider(user.id));
-      if (user.role == UserRole.patient && profileAsync.isLoading) {
+      if (user.role == UserRole.patient && !profileAsync.hasValue) {
         return null;
       }
 
