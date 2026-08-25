@@ -8,7 +8,7 @@ show it rather than assert it.
 
 ## "Is this actually connected to a database, or is it hardcoded?"
 
-Yes — PostgreSQL 17 on Supabase, 27 tables, 23 migrations. The quickest proof is
+Yes — PostgreSQL 17 on Supabase, 27 tables, 24 migrations. The quickest proof is
 to book an appointment in the app and then show the row in the Supabase table
 editor, or to book the same slot twice and watch the **database** refuse it.
 
@@ -24,7 +24,7 @@ inventory, staff scheduling and the chatbot remain, and Plan 04 takes
 prescriptions next.
 
 The mock is also **deliberately retained** as two things: the test double the
-119 automated tests run against, and a fully offline demo mode
+123 automated tests run against, and a fully offline demo mode
 (`--dart-define=MYPULSE_MOCK=true`) that works with no network at all.
 
 The honest framing: *migrating everything at once and half-testing it would have
@@ -82,7 +82,7 @@ the doctor's window without touching it.
 
 ## "Did you test it, or does it just look finished?"
 
-- **119 automated Dart tests**, `flutter analyze` clean.
+- **123 automated Dart tests**, `flutter analyze` clean.
 - **22 SQL test files** run against the real database.
 - Every unit of work was reviewed against its specification, then the whole
   branch was reviewed again as a system.
@@ -103,9 +103,10 @@ Answer this one plainly; it is a strength, not an admission. All of it is in
 `docs/PROJECT-STATUS.md` under Known limitations:
 
 1. Five features still on the mock (above).
-2. **Slots are generated in UTC**, so the clinic's "9:00 AM" is 09:00 UTC. The
-   app is self-consistent — you pick 9:00 and see 9:00 — but a real deployment
-   needs a configured clinic timezone. This is the first thing I would fix.
+2. Clinic timezone is one value per clinic (`clinics.timezone`), so a clinic
+   spanning zones is not modelled. Everything else about time is handled: the
+   database reads opening hours in the clinic's zone and the app renders in
+   local time.
 3. A deactivated staff member keeps a valid session until their token expires
    (one hour); `is_active` is checked at sign-in, not on every request.
 4. No account erasure. Eight foreign keys reference `profiles` with `NO ACTION`,
@@ -120,6 +121,11 @@ Answer this one plainly; it is a strength, not an admission. All of it is in
 **Accounts** are in `docs/DEMO.md`. Staff sign in on **web**; patients sign in
 on **mobile or desktop** — a patient signing in on web is signed straight back
 out, by role check, not by hiding a button.
+
+**Times are clinic-local.** Opening hours live in `doctor_availability` as
+wall-clock times and are read in `clinics.timezone`; the app renders every
+timestamp in local time. A 9am slot is 9am on the clinic's wall, stored as
+01:00Z.
 
 **The doctor's queue is seeded with a clinic day in progress** — two appointments
 already seen, two still to come. Those times come from `current_date` in

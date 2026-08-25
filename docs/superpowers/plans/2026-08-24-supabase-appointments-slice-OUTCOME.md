@@ -183,13 +183,12 @@ must be seen red before it is kept.
 
 Stated plainly rather than hidden.
 
-1. **Slots are generated in UTC.** The server's `TimeZone` is `UTC`, so the
-   clinic's "9:00 AM" slot is 09:00 UTC — 5 PM in Malaysia. The app never calls
-   `.toLocal()` on an appointment time, so the system is internally consistent
-   (a patient picks "9:00" and sees "9:00") and this is invisible in the demo.
-   But clinic business hours are UTC hours, and `watchTodaysQueue` buckets by
-   the UTC day, so a doctor opening the dashboard before 08:00 local would see
-   the previous UTC day's queue. A real deployment needs a clinic timezone.
+1. ~~Slots are generated in UTC.~~ **Fixed after this slice** by migration
+   `0024_clinic_timezone.sql`. `clinics.timezone` (default `Asia/Kuala_Lumpur`)
+   now anchors slot generation, both write RPCs resolve the calendar day in
+   clinic time, and `DateFormatters` renders every timestamp locally. What
+   remains is narrower: one timezone per clinic, so a clinic spanning zones is
+   not modelled.
 2. **The browser matrix rows are unverified** — see above.
 3. **The two realtime streams filter in Dart on each emission.** Supabase
    realtime supports `.eq` on the stream builder but not arbitrary predicates,

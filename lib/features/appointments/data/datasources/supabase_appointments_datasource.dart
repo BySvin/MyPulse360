@@ -128,14 +128,21 @@ class SupabaseAppointmentsDataSource implements AppointmentsDataSource {
         .stream(primaryKey: ['id'])
         .eq('doctor_id', doctorId)
         .map((rows) {
-          final today = DateTime.now().toUtc();
+          // "Today" is the clinic's day, not UTC's. Bucketing on the UTC
+          // calendar day put a 9am Kuala Lumpur appointment (01:00Z) on the
+          // right day only by luck of the offset, and would drop or add
+          // appointments either side of midnight local. Both sides of the
+          // comparison are converted, so the whole test is in one zone.
+          final today = DateTime.now();
           return rows
               .map((r) => appointmentFromRow(Map<String, dynamic>.from(r)))
-              .where((a) =>
-                  a.status != AppointmentStatus.cancelled &&
-                  a.scheduledAt.year == today.year &&
-                  a.scheduledAt.month == today.month &&
-                  a.scheduledAt.day == today.day)
+              .where((a) {
+                final at = a.scheduledAt.toLocal();
+                return a.status != AppointmentStatus.cancelled &&
+                    at.year == today.year &&
+                    at.month == today.month &&
+                    at.day == today.day;
+              })
               .toList()
             ..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
         })

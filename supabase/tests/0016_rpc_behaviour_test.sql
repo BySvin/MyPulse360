@@ -1,3 +1,8 @@
+-- Slot times are anchored to the CLINIC's timezone, not UTC. Migration 0024
+-- corrected slot generation to read doctor_availability's wall-clock hours in
+-- the clinic's zone; a booking anchored to UTC here would no longer line up
+-- with any generated slot and every block below would fail with
+-- "slot unavailable" for the wrong reason.
 -- available_slots returns 16 half-hour slots for a Wednesday (09:00-17:00).
 -- The date is derived from current_date rather than hardcoded: a stable
 -- future Wednesday at least a week out, so the suite never goes stale (see
@@ -18,12 +23,12 @@ select set_config('request.jwt.claims',
   json_build_object('sub','44444444-4444-4444-4444-444444444441','role','authenticated')::text, true);
 set local role authenticated;
 select public.book_appointment('22222222-2222-2222-2222-222222222221'::uuid,
-                               ((date_trunc('week', current_date) + interval '1 week 2 days')::date + time '10:30') at time zone 'UTC',
+                               ((date_trunc('week', current_date) + interval '1 week 2 days')::date + time '10:30') at time zone (select timezone from public.clinics where id = '11111111-1111-1111-1111-111111111111'),
                                'General checkup', null);
 do $$
 begin
   perform public.book_appointment('22222222-2222-2222-2222-222222222221'::uuid,
-                                  ((date_trunc('week', current_date) + interval '1 week 2 days')::date + time '10:30') at time zone 'UTC',
+                                  ((date_trunc('week', current_date) + interval '1 week 2 days')::date + time '10:30') at time zone (select timezone from public.clinics where id = '11111111-1111-1111-1111-111111111111'),
                                   'General checkup', null);
   raise exception 'FAIL: double booking succeeded';
 exception
@@ -38,7 +43,7 @@ select set_config('request.jwt.claims',
   json_build_object('sub','44444444-4444-4444-4444-444444444441','role','authenticated')::text, true);
 set local role authenticated;
 select public.book_appointment('22222222-2222-2222-2222-222222222221'::uuid,
-                               (((date_trunc('week', current_date) + interval '1 week 2 days')::date + 1) + time '09:00') at time zone 'UTC',
+                               (((date_trunc('week', current_date) + interval '1 week 2 days')::date + 1) + time '09:00') at time zone (select timezone from public.clinics where id = '11111111-1111-1111-1111-111111111111'),
                                'General checkup', null);
 set local role postgres;
 select set_config('request.jwt.claims',
@@ -53,7 +58,7 @@ select public.decide_leave(
 select case when count(*) = 0 then 'PASS' else 'FAIL: ' || count(*) || ' survived' end as status
 from public.appointments
 where doctor_id = '22222222-2222-2222-2222-222222222221'
-  and (scheduled_at at time zone 'UTC')::date = (date_trunc('week', current_date) + interval '1 week 2 days')::date + 1
+  and (scheduled_at at time zone (select timezone from public.clinics where id = '11111111-1111-1111-1111-111111111111'))::date = (date_trunc('week', current_date) + interval '1 week 2 days')::date + 1
   and status <> 'cancelled';
 rollback;
 

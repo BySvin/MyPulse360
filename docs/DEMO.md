@@ -148,7 +148,7 @@ documented.
 - Staff provisioning and account activation
 - **Appointment booking, rescheduling, cancellation and slot availability**
 - **The patient health profile and wellness goals**
-- All 27 tables, row-level security, 16 server-side functions
+- All 27 tables, row-level security, 17 server-side functions
 
 Two things update **without a refresh**, over Postgres realtime: the patient's
 next upcoming appointment, and the doctor's queue for today.
@@ -167,11 +167,10 @@ Book one from the patient app first and watch it appear in the doctor's queue
 without a refresh — that is the realtime path, and an empty queue beforehand is
 the honest starting state rather than a failure.
 
-**Slots are generated in UTC.** The clinic's "9:00 AM" slot is 09:00 UTC. The
-app never converts to local time, so a patient picks "9:00" and sees "9:00"
-everywhere — it is self-consistent — but a real deployment would need a
-configured clinic timezone. It is listed in `docs/PROJECT-STATUS.md` under
-Known limitations.
+**The clinic closes at 5pm local.** Slot times are the clinic's own wall clock
+(`clinics.timezone`, default `Asia/Kuala_Lumpur`), so if you are demoing in the
+evening every slot for *today* is already past and the calendar will send you to
+tomorrow. That is correct behaviour, not a fault — pick tomorrow and book there.
 
 ---
 

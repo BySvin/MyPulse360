@@ -22,9 +22,9 @@ Function.
 |---|---|
 | Tables | 27, every one with row-level security enabled |
 | Enum types | 14, mirroring the Dart domain enums |
-| Server-side functions | 16, all `SECURITY DEFINER` with a pinned `search_path` |
+| Server-side functions | 17, all `SECURITY DEFINER` with a pinned `search_path` |
 | Edge Functions | 1 (`create-staff-account`) |
-| Migrations | 23 |
+| Migrations | 24 |
 | SQL test files | 22 |
 
 **The authorization model.** Row-level security decides *which rows* a caller
@@ -58,7 +58,7 @@ upcoming appointment and the doctor's queue for today. Reads are `FutureProvider
 and every screen renders its `AsyncValue` through one shared widget, so a value
 that has not loaded is never drawn as though it were an answer.
 
-`flutter analyze` is clean and **116 Dart tests pass**.
+`flutter analyze` is clean and **123 Dart tests pass**.
 
 ### Not yet migrated
 
@@ -77,7 +77,7 @@ mode, not as dead code.
 
 Verification was treated as part of the work rather than a final step.
 
-**Automated.** 116 Dart tests; 22 SQL test files including a cross-tenant
+**Automated.** 123 Dart tests; 22 SQL test files including a cross-tenant
 isolation suite that signs in as one patient and asserts they cannot read
 another's records — with a counter-check proving the other patient's rows exist,
 so the assertion cannot pass merely because a table is empty.
@@ -94,7 +94,7 @@ being accepted, then the whole branch was reviewed as a system.
 
 ## Defects found and fixed before release
 
-Twenty-three across the project. The ten that mattered most:
+Twenty-four across the project. The eleven that mattered most:
 
 | Defect | Why it mattered |
 |---|---|
@@ -108,8 +108,9 @@ Twenty-three across the project. The ten that mattered most:
 | Any doctor at any clinic could reassign any patient's care team | Cross-tenant write |
 | The appointments datasource was correct but wired to nothing | The whole slice was dead code; the plan put the wiring in an earlier task that ran before the datasource existed |
 | Deleting an account reported success without deleting anything | A table-level DELETE grant with no DELETE policy matches zero rows and returns success under RLS |
+| The whole clinic ran in the wrong timezone | Opening hours of 09:00-17:00 were read as UTC, so the clinic was open 5pm-1am local. Self-consistent end to end, which is exactly why nothing contradicted it |
 
-**Nine of the twenty-three were only visible where two individually-correct
+**Nine of the twenty-four were only visible where two individually-correct
 changes met** —
 a datasource nothing constructed, a wiring change that made three unguarded call
 sites live, a deletion that would have broken sign-up in the offline demo. That
@@ -130,12 +131,11 @@ Stated plainly rather than hidden.
 
 1. **Five features remain on the mock** — prescriptions, health metrics,
    pharmacy inventory, staff scheduling and the chatbot.
-2. **Appointment slots are generated in UTC.** The database's timezone is UTC,
-   so the clinic's "9:00 AM" slot is 09:00 UTC — 5 PM in Malaysia. The app never
-   converts an appointment time to local, so the system is self-consistent (a
-   patient picks "9:00" and sees "9:00") and this is invisible in the demo. But
-   clinic hours are effectively UTC hours, and the doctor's "today's queue"
-   buckets by the UTC day. A real deployment needs a configured clinic timezone.
+2. **Clinic timezone is a single value, not per-doctor.** `clinics.timezone`
+   (default `Asia/Kuala_Lumpur`) is what opening hours are read in. A clinic
+   spanning multiple zones, or a doctor working remotely from another, is not
+   modelled. The column is server-managed — clients hold `SELECT` on `clinics`
+   and nothing else.
 3. **A deactivated staff member keeps a valid session until their token expires**
    (one hour). `is_active` is checked at sign-in, not on every request.
 4. **No account erasure.** Eight foreign keys reference `profiles` with
@@ -153,7 +153,7 @@ Stated plainly rather than hidden.
 
 | Path | What it holds |
 |---|---|
-| `supabase/migrations/` | 23 migrations, in order |
+| `supabase/migrations/` | 24 migrations, in order |
 | `supabase/tests/` | SQL assertions, including the isolation suite |
 | `supabase/functions/create-staff-account/` | The one server-side function |
 | `lib/features/*/data/datasources/` | Paired mock and Supabase implementations |
