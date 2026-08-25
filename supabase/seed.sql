@@ -109,13 +109,45 @@ on conflict (item_id, batch_number) do nothing;
 -- 0015_rls_isolation_test.sql actually exercise RLS. Without these they pass
 -- trivially. Dates are chosen not to collide with the RPC behaviour tests,
 -- which use 2026-08-26 10:30 and 2026-08-27 09:00.
+-- Appointment times are derived from current_date, never hardcoded. A fixed
+-- date silently rots: once it passes, `is_past` excludes it, the doctor's
+-- "today" queue is empty and the demo looks broken when it is not. The SQL
+-- test suite derives its dates the same way and for the same reason.
+--
+-- These fill out one clinic day so the doctor's queue and the slot grid have
+-- something in them on a fresh seed. Slots are UTC (see PROJECT-STATUS.md,
+-- Known limitations), so 09:00 here is 09:00 UTC.
 insert into public.appointments
-  (id, patient_id, doctor_id, clinic_id, scheduled_at, appointment_type, status)
-values ('77777777-7777-7777-7777-777777777771',
-        '44444444-4444-4444-4444-444444444442',
-        '22222222-2222-2222-2222-222222222221',
-        '11111111-1111-1111-1111-111111111111',
-        timestamptz '2026-09-02 09:00+00', 'Diabetes Follow-up', 'scheduled')
+  (id, patient_id, doctor_id, clinic_id, scheduled_at, duration_minutes, appointment_type, status, reason_for_visit)
+values
+  ('77777777-7777-7777-7777-777777777771',
+   '44444444-4444-4444-4444-444444444442', '22222222-2222-2222-2222-222222222221',
+   '11111111-1111-1111-1111-111111111111',
+   (current_date + interval '8 days' + time '09:00') at time zone 'UTC',
+   30, 'Diabetes Follow-up', 'scheduled', null),
+  -- Earlier today, already seen — gives the queue a sense of a day in progress.
+  ('77777777-7777-7777-7777-777777777773',
+   '44444444-4444-4444-4444-444444444441', '22222222-2222-2222-2222-222222222221',
+   '11111111-1111-1111-1111-111111111111',
+   (current_date + time '09:00') at time zone 'UTC',
+   30, 'General checkup', 'completed', 'Annual physical'),
+  ('77777777-7777-7777-7777-777777777774',
+   '44444444-4444-4444-4444-444444444442', '22222222-2222-2222-2222-222222222221',
+   '11111111-1111-1111-1111-111111111111',
+   (current_date + time '10:00') at time zone 'UTC',
+   30, 'Follow-up', 'completed', 'Blood pressure review'),
+  -- Still to come today, so the queue is not all history and the patient's
+  -- "next upcoming" banner has something to show.
+  ('77777777-7777-7777-7777-777777777775',
+   '44444444-4444-4444-4444-444444444441', '22222222-2222-2222-2222-222222222221',
+   '11111111-1111-1111-1111-111111111111',
+   (current_date + time '13:00') at time zone 'UTC',
+   30, 'Consultation', 'confirmed', 'Persistent cough'),
+  ('77777777-7777-7777-7777-777777777776',
+   '44444444-4444-4444-4444-444444444442', '22222222-2222-2222-2222-222222222221',
+   '11111111-1111-1111-1111-111111111111',
+   (current_date + time '15:00') at time zone 'UTC',
+   30, 'Follow-up', 'scheduled', 'Medication review')
 on conflict (id) do nothing;
 
 insert into public.health_metrics (id, patient_id, type, value, measured_at)
