@@ -121,9 +121,11 @@ What that does and does not cost:
 
 ## Defects found and fixed
 
-Seven in this slice. The pattern worth noting: **five existed only *between* two
-individually-correct changes**, which is why each task is reviewed against its
-brief and then the branch is reviewed as a whole.
+Ten in this slice — seven found by per-task review, three more by the
+whole-branch review that followed. The pattern worth noting: **six existed only
+*between* two individually-correct changes**, which is why each task is reviewed
+against its brief *and* the branch is then reviewed again as a whole. Neither
+step alone finds them.
 
 | # | Defect | Why it mattered |
 |---|---|---|
@@ -134,11 +136,26 @@ brief and then the branch is reviewed as a whole.
 | 5 | Deleting `_ensureLocalPatientProfile` would have **broken sign-up in mock mode** | It is the only code that creates a profile row, and the mock's `updateProfile` throws without one. The plan said to delete it. |
 | 6 | `deleteAccount` would have **silently succeeded** | `patient_profiles` has a table-level DELETE *grant* but no DELETE *policy*, so under RLS a delete matches zero rows and returns success — telling a patient their record was erased when nothing happened. |
 | 7 | `createInitialProfile` could not honour its own signature | No client may write `assigned_doctor_id`; `assign_default_doctor()` is the single write path. Returning a profile with an empty doctor id would have fed straight into booking. |
+| 8 | The router force-redirected an onboarded patient into onboarding on a **failed** profile fetch | It guarded `isLoading` but not `hasError`, so a dropped connection made `onboarded` compute to `false` — from every route, for every patient. Only reachable once this slice made `getProfile` a network call. |
+| 9 | The patient's Home tab said "No goals yet" **while goals were loading** | Every patient with goals was told they had none on every cold load; health insights vanished in the same window. Seventh instance of this bug class on the branch — it survived because the file was outside the earlier fix round's scope even though this slice made its providers async. |
+| 10 | Approving leave could cancel **some** colliding appointments and report a generic failure | The leave stays filed and some patients still expect to be seen; the doctor could not tell which. Now says so explicitly, with no silent rollback. |
 
 Defects 1, 4 and 5 were **defects in the plan itself**, found by implementers
 and reviewers pushing back rather than complying. Defect 6 was a correction to
 the controller's own pre-flight finding, and the corrected version is sharper
 than the original.
+
+Defect 8 deserves a specific note: the Task 7 implementer **flagged that exact
+shape in its report** and it was deferred rather than judged. The whole-branch
+review then found it independently. An escalation that is acknowledged and then
+dropped is worse than one never made, and it is recorded here rather than
+quietly folded into the count.
+
+Every test added for defects 8, 9 and 10 was **proven able to fail** by
+reintroducing the defect and watching it go red — reverting the router guard
+yields `Expected: '/login', Actual: '/onboarding/welcome'`. This project has
+shipped six assertions that could never fail; the bar is now that a new test
+must be seen red before it is kept.
 
 ---
 
