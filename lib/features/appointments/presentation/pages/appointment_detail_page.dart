@@ -155,24 +155,57 @@ class AppointmentDetailPage extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 10),
-                SecondaryButton(
-                  label: 'Cancel Appointment',
-                  onPressed: () async {
-                    await ref
-                        .read(appointmentsRepositoryProvider)
-                        .updateStatus(
-                          appointment.id,
-                          AppointmentStatus.cancelled,
-                        );
-                    ref.read(appointmentsRevisionProvider.notifier).state++;
-                    if (context.mounted) Navigator.of(context).pop();
-                  },
-                ),
+                _CancelAppointmentButton(appointmentId: appointment.id),
               ],
             ],
           );
         },
       ),
+    );
+  }
+}
+
+/// Its own small stateful widget (rather than a loading bool on the parent
+/// page) because [AppointmentDetailPage] is a plain [ConsumerWidget] and
+/// this button is the only thing on the page that needs to track an
+/// in-flight write.
+class _CancelAppointmentButton extends ConsumerStatefulWidget {
+  const _CancelAppointmentButton({required this.appointmentId});
+
+  final String appointmentId;
+
+  @override
+  ConsumerState<_CancelAppointmentButton> createState() =>
+      _CancelAppointmentButtonState();
+}
+
+class _CancelAppointmentButtonState
+    extends ConsumerState<_CancelAppointmentButton> {
+  bool _cancelling = false;
+
+  Future<void> _cancel() async {
+    setState(() => _cancelling = true);
+    try {
+      await ref
+          .read(appointmentsRepositoryProvider)
+          .updateStatus(widget.appointmentId, AppointmentStatus.cancelled);
+      ref.read(appointmentsRevisionProvider.notifier).state++;
+      if (!mounted) return;
+      Navigator.of(context).pop();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _cancelling = false);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SecondaryButton(
+      label: _cancelling ? 'Cancelling…' : 'Cancel Appointment',
+      onPressed: _cancelling ? null : _cancel,
     );
   }
 }

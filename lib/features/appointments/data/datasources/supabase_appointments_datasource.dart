@@ -170,9 +170,8 @@ class SupabaseAppointmentsDataSource implements AppointmentsDataSource {
     try {
       // set_appointment_status's second parameter is the appointment_status
       // enum, not text. appointmentStatusToDb(status) is a Dart String;
-      // PostgREST is expected to cast the JSON string to the enum, but that
-      // has not been verified against the live RPC (read-only constraint on
-      // this task) — flagged for the live pass in Task 8.
+      // verified live against the project that PostgREST casts the JSON
+      // string to the enum correctly.
       final row = await _client.rpc('set_appointment_status', params: {
         'p_appointment': appointmentId,
         'p_status': appointmentStatusToDb(status),

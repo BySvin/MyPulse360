@@ -79,20 +79,33 @@ class _ApplyLeaveSheetState extends ConsumerState<_ApplyLeaveSheet> {
   Future<void> _save() async {
     setState(() => _saving = true);
 
-    final result = await ref
-        .read(applyLeaveUseCaseProvider)
-        .call(
-          staffId: widget.staffId,
-          startDate: _start,
-          endDate: _end,
-          reason: _reasonController.text.trim(),
-        );
+    try {
+      final result = await ref
+          .read(applyLeaveUseCaseProvider)
+          .call(
+            staffId: widget.staffId,
+            startDate: _start,
+            endDate: _end,
+            reason: _reasonController.text.trim(),
+          );
 
-    ref.read(schedulingRevisionProvider.notifier).state++;
-    ref.read(appointmentsRevisionProvider.notifier).state++;
-    if (!mounted) return;
-    setState(() => _saving = false);
-    Navigator.of(context).pop(result.cancelledAppointments.length);
+      ref.read(schedulingRevisionProvider.notifier).state++;
+      ref.read(appointmentsRevisionProvider.notifier).state++;
+      if (!mounted) return;
+      setState(() => _saving = false);
+      Navigator.of(context).pop(result.cancelledAppointments.length);
+    } catch (e) {
+      // Leave itself may or may not have been recorded — either way, refresh
+      // both revisions so the sheet's clash preview and the page behind it
+      // show the truth instead of a stale view.
+      ref.read(schedulingRevisionProvider.notifier).state++;
+      ref.read(appointmentsRevisionProvider.notifier).state++;
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text('$e')));
+    }
   }
 
   String _fmt(DateTime d) =>

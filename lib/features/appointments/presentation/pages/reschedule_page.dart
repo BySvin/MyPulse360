@@ -40,13 +40,27 @@ class _ReschedulePageState extends ConsumerState<ReschedulePage> {
     final slot = _selectedSlot;
     if (slot == null) return;
     setState(() => _saving = true);
-    await ref
-        .read(appointmentsRepositoryProvider)
-        .reschedule(widget.appointment.id, slot.dateTime);
-    ref.read(appointmentsRevisionProvider.notifier).state++;
-    if (!mounted) return;
-    setState(() => _saving = false);
-    Navigator.of(context).pop();
+    try {
+      await ref
+          .read(appointmentsRepositoryProvider)
+          .reschedule(widget.appointment.id, slot.dateTime);
+      ref.read(appointmentsRevisionProvider.notifier).state++;
+      if (!mounted) return;
+      setState(() => _saving = false);
+      Navigator.of(context).pop();
+    } catch (e) {
+      // Someone booked this slot between the grid rendering and Confirm.
+      // Refresh so the grid shows the truth, and clear the stale selection.
+      ref.read(appointmentsRevisionProvider.notifier).state++;
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _selectedSlot = null;
+      });
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text('$e')));
+    }
   }
 
   @override
