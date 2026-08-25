@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../config/theme/app_theme.dart';
 import '../../../../shared/presentation/widgets/app_card.dart';
+import '../../../../shared/presentation/widgets/async_section.dart';
 import '../../../../shared/presentation/widgets/large_title_app_bar.dart';
 import '../../../../shared/presentation/widgets/primary_button.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
@@ -39,23 +40,41 @@ class _ReschedulePageState extends ConsumerState<ReschedulePage> {
     final slot = _selectedSlot;
     if (slot == null) return;
     setState(() => _saving = true);
-    await ref.read(appointmentsRepositoryProvider).reschedule(widget.appointment.id, slot.dateTime);
-    ref.read(appointmentsRevisionProvider.notifier).state++;
-    if (!mounted) return;
-    setState(() => _saving = false);
-    Navigator.of(context).pop();
+    try {
+      await ref
+          .read(appointmentsRepositoryProvider)
+          .reschedule(widget.appointment.id, slot.dateTime);
+      ref.read(appointmentsRevisionProvider.notifier).state++;
+      if (!mounted) return;
+      setState(() => _saving = false);
+      Navigator.of(context).pop();
+    } catch (e) {
+      // Someone booked this slot between the grid rendering and Confirm.
+      // Refresh so the grid shows the truth, and clear the stale selection.
+      ref.read(appointmentsRevisionProvider.notifier).state++;
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _selectedSlot = null;
+      });
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text('$e')));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final doctor = ref.watch(authRepositoryProvider).getUserById(widget.appointment.doctorId);
-    final slots = ref
-        .watch(availableSlotsProvider((doctorId: widget.appointment.doctorId, date: _selectedDate)))
-        .map((s) {
-      final selected = _selectedSlot != null && s.dateTime == _selectedSlot!.dateTime;
-      return s.copyWith(isSelected: selected);
-    }).toList();
+    final doctor = ref
+        .watch(userProfileProvider(widget.appointment.doctorId))
+        .valueOrNull;
+    final slotsAsync = ref.watch(
+      availableSlotsProvider((
+        doctorId: widget.appointment.doctorId,
+        date: _selectedDate,
+      )),
+    );
 
     return Scaffold(
       appBar: const LargeTitleAppBar(title: 'Reschedule'),
@@ -64,7 +83,10 @@ class _ReschedulePageState extends ConsumerState<ReschedulePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Select a new date', style: Theme.of(context).textTheme.titleSmall),
+            Text(
+              'Select a new date',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
             const SizedBox(height: 8),
             MonthCalendar(
               doctorId: widget.appointment.doctorId,
@@ -75,23 +97,44 @@ class _ReschedulePageState extends ConsumerState<ReschedulePage> {
               }),
             ),
             const SizedBox(height: 20),
-            Text('Available times', style: Theme.of(context).textTheme.titleSmall),
+            Text(
+              'Available times',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
             const SizedBox(height: 10),
-            AppCard(
-              child: slots.every((s) => s.isDisabled)
-                  ? Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: Text(
-                        slots.any((s) => s.isDoctorOnLeave)
-                            ? '${doctor?.fullName ?? 'Your doctor'} is on leave this day. Please choose another date.'
-                            : 'No slots available this day. Try another date.',
-                        style: TextStyle(color: colors.textSecondary, fontSize: 12),
-                      ),
-                    )
-                  : TimeSlotGrid(
-                      slots: slots,
-                      onSelect: (s) => setState(() => _selectedSlot = s),
-                    ),
+            // An empty slot list during load must never render as "No slots
+            // available this day" — that's a false statement the patient
+            // acts on by picking a different date.
+            AsyncSection(
+              value: slotsAsync,
+              data: (rawSlots) {
+                final slots = rawSlots.map((s) {
+                  final selected =
+                      _selectedSlot != null &&
+                      s.dateTime == _selectedSlot!.dateTime;
+                  return s.copyWith(isSelected: selected);
+                }).toList();
+
+                return AppCard(
+                  child: slots.every((s) => s.isDisabled)
+                      ? Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: Text(
+                            slots.any((s) => s.isDoctorOnLeave)
+                                ? '${doctor?.fullName ?? 'Your doctor'} is on leave this day. Please choose another date.'
+                                : 'No slots available this day. Try another date.',
+                            style: TextStyle(
+                              color: colors.textSecondary,
+                              fontSize: 12,
+                            ),
+                          ),
+                        )
+                      : TimeSlotGrid(
+                          slots: slots,
+                          onSelect: (s) => setState(() => _selectedSlot = s),
+                        ),
+                );
+              },
             ),
             const SizedBox(height: 24),
             PrimaryButton(

@@ -6,6 +6,8 @@ class GetAvailableSlotsUseCase {
 
   final AppointmentsRepository _repository;
 
-  List<TimeSlot> call({required String doctorId, required DateTime date}) =>
-      _repository.getAvailableSlots(doctorId: doctorId, date: date);
+  Future<List<TimeSlot>> call({
+    required String doctorId,
+    required DateTime date,
+  }) => _repository.getAvailableSlots(doctorId: doctorId, date: date);
 }

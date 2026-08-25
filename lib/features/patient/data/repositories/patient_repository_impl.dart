@@ -9,24 +9,30 @@ class PatientRepositoryImpl implements PatientRepository {
   final PatientDataSource _dataSource;
 
   @override
-  PatientProfile? getProfile(String patientId) => _dataSource.getProfile(patientId);
+  Future<PatientProfile?> getProfile(String patientId) =>
+      _dataSource.getProfile(patientId);
 
   @override
-  List<WellnessGoal> getWellnessGoals(String patientId) => _dataSource.getWellnessGoals(patientId);
+  Future<List<WellnessGoal>> getWellnessGoals(String patientId) =>
+      _dataSource.getWellnessGoals(patientId);
 
   @override
   Future<PatientProfile> createInitialProfile({
     required String patientId,
     required String assignedDoctorId,
-  }) =>
-      _dataSource.createInitialProfile(patientId: patientId, assignedDoctorId: assignedDoctorId);
+  }) => _dataSource.createInitialProfile(
+    patientId: patientId,
+    assignedDoctorId: assignedDoctorId,
+  );
 
   @override
   Future<void> seedStarterGoals({
     required String patientId,
     required List<WellnessGoalType> selectedGoals,
-  }) =>
-      _dataSource.seedStarterGoals(patientId: patientId, selectedGoals: selectedGoals);
+  }) => _dataSource.seedStarterGoals(
+    patientId: patientId,
+    selectedGoals: selectedGoals,
+  );
 
   @override
   Future<PatientProfile> updateProfile(
@@ -46,26 +52,26 @@ class PatientRepositoryImpl implements PatientRepository {
     bool? notifyAppointments,
     bool? notifyPrescriptions,
     bool? notifyHealthTips,
-  }) =>
-      _dataSource.updateProfile(
-        patientId,
-        heightCm: heightCm,
-        weightKg: weightKg,
-        allergies: allergies,
-        dateOfBirth: dateOfBirth,
-        gender: gender,
-        bloodType: bloodType,
-        chronicConditions: chronicConditions,
-        insuranceProvider: insuranceProvider,
-        emergencyContactName: emergencyContactName,
-        emergencyContactPhone: emergencyContactPhone,
-        preferredClinicId: preferredClinicId,
-        preferredLanguage: preferredLanguage,
-        notifyAppointments: notifyAppointments,
-        notifyPrescriptions: notifyPrescriptions,
-        notifyHealthTips: notifyHealthTips,
-      );
+  }) => _dataSource.updateProfile(
+    patientId,
+    heightCm: heightCm,
+    weightKg: weightKg,
+    allergies: allergies,
+    dateOfBirth: dateOfBirth,
+    gender: gender,
+    bloodType: bloodType,
+    chronicConditions: chronicConditions,
+    insuranceProvider: insuranceProvider,
+    emergencyContactName: emergencyContactName,
+    emergencyContactPhone: emergencyContactPhone,
+    preferredClinicId: preferredClinicId,
+    preferredLanguage: preferredLanguage,
+    notifyAppointments: notifyAppointments,
+    notifyPrescriptions: notifyPrescriptions,
+    notifyHealthTips: notifyHealthTips,
+  );
 
   @override
-  Future<void> deleteAccount(String patientId) => _dataSource.deleteAccount(patientId);
+  Future<void> deleteAccount(String patientId) =>
+      _dataSource.deleteAccount(patientId);
 }

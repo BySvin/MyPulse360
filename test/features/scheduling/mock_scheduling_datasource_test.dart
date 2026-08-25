@@ -181,5 +181,34 @@ void main() {
       expect(updated.decidedBy, MockIds.drAhmedUserId);
       expect(dataSource.getNotifications(MockIds.fatimaUserId), isNotEmpty);
     });
+
+    test('autoApprove files the leave as already approved and self-decided', () async {
+      final leave = await dataSource.requestLeave(
+        staffId: MockIds.drAhmedUserId,
+        startDate: DateTime(2026, 3, 2),
+        endDate: DateTime(2026, 3, 4),
+        reason: 'Conference',
+        autoApprove: true,
+      );
+
+      expect(leave.status, LeaveStatus.approved);
+      expect(leave.decidedBy, MockIds.drAhmedUserId, reason: 'the doctor is their own approver');
+      expect(leave.decidedAt, isNotNull);
+      expect(dataSource.getNotifications(MockIds.drAhmedUserId), isNotEmpty);
+    });
+
+    test('cancelLeave removes the record so the days reopen', () async {
+      final leave = await dataSource.requestLeave(
+        staffId: MockIds.drAhmedUserId,
+        startDate: DateTime(2026, 3, 9),
+        endDate: DateTime(2026, 3, 9),
+        reason: 'Personal',
+        autoApprove: true,
+      );
+
+      await dataSource.cancelLeave(leave.id);
+
+      expect(dataSource.getLeaveRequestsForStaff(MockIds.drAhmedUserId).map((l) => l.id), isNot(contains(leave.id)));
+    });
   });
 }

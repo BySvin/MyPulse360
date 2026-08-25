@@ -1,8 +1,12 @@
-/// This pass runs entirely against mock/in-memory data (see the
-/// implementation plan). `isMockMode` exists as the single switch to flip
-/// once a real Supabase backend is wired in.
+/// Which backend the app talks to.
+///
+/// Defaults to the real Supabase project. Pass
+/// `--dart-define=MYPULSE_MOCK=true` to run against the in-memory
+/// [MockDatabase] instead — which is what the widget tests and a
+/// no-network demo need.
 abstract final class Env {
-  static const bool isMockMode = true;
+  static const bool isMockMode =
+      bool.fromEnvironment('MYPULSE_MOCK', defaultValue: false);
 
   const Env._();
 }

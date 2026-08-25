@@ -72,12 +72,22 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
     required DateTime startDate,
     required DateTime endDate,
     required String reason,
+    bool autoApprove = false,
   }) =>
-      _dataSource.requestLeave(staffId: staffId, startDate: startDate, endDate: endDate, reason: reason);
+      _dataSource.requestLeave(
+        staffId: staffId,
+        startDate: startDate,
+        endDate: endDate,
+        reason: reason,
+        autoApprove: autoApprove,
+      );
 
   @override
   Future<void> decideLeave(String leaveId, {required LeaveStatus status, required String decidedBy}) =>
       _dataSource.decideLeave(leaveId, status: status, decidedBy: decidedBy);
+
+  @override
+  Future<void> cancelLeave(String leaveId) => _dataSource.cancelLeave(leaveId);
 
   @override
   List<StaffUnavailability> getUnavailability(String staffId) => _dataSource.getUnavailability(staffId);

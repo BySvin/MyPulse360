@@ -45,14 +45,22 @@ abstract class SchedulingRepository {
 
   List<LeaveRequest> getLeaveRequestsForStaff(String staffId);
 
+  /// [autoApprove] files the request as already approved and self-decided —
+  /// the doctor's Apply Leave flow, where the doctor is the clinic admin and
+  /// so has nobody above them to approve it.
   Future<LeaveRequest> requestLeave({
     required String staffId,
     required DateTime startDate,
     required DateTime endDate,
     required String reason,
+    bool autoApprove = false,
   });
 
   Future<void> decideLeave(String leaveId, {required LeaveStatus status, required String decidedBy});
+
+  /// Withdraws a leave record entirely, which reopens the days it covered
+  /// for patient booking.
+  Future<void> cancelLeave(String leaveId);
 
   List<StaffUnavailability> getUnavailability(String staffId);
 

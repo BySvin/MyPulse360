@@ -10,19 +10,33 @@ import '../../domain/entities/doctor_profile.dart';
 import '../../domain/repositories/doctor_repository.dart';
 
 final doctorRepositoryProvider = Provider<DoctorRepository>((ref) {
-  return DoctorRepositoryImpl(MockDoctorDataSource(ref.watch(mockDatabaseProvider)));
+  return DoctorRepositoryImpl(
+    MockDoctorDataSource(ref.watch(mockDatabaseProvider)),
+  );
 });
 
-final doctorProfileProvider = Provider.family<DoctorProfile?, String>((ref, doctorId) {
+final doctorProfileProvider = Provider.family<DoctorProfile?, String>((
+  ref,
+  doctorId,
+) {
   return ref.watch(doctorRepositoryProvider).getProfile(doctorId);
 });
 
-final todaysQueueProvider = Provider.family<List<Appointment>, String>((ref, doctorId) {
+final todaysQueueProvider = StreamProvider.family<List<Appointment>, String>((
+  ref,
+  doctorId,
+) {
+  // Against a real realtime stream this re-subscribe is cheap; against the
+  // mock's Stream.value(...) it's what makes the queue refresh at all —
+  // remove alongside appointmentsRevisionProvider in the cutover slice.
   ref.watch(appointmentsRevisionProvider);
-  return ref.watch(doctorRepositoryProvider).getTodaysQueue(doctorId);
+  return ref.watch(appointmentsRepositoryProvider).watchTodaysQueue(doctorId);
 });
 
-final patientHistoryProvider = Provider.family<List<Consultation>, String>((ref, patientId) {
+final patientHistoryProvider = Provider.family<List<Consultation>, String>((
+  ref,
+  patientId,
+) {
   ref.watch(appointmentsRevisionProvider);
   return ref.watch(doctorRepositoryProvider).getPatientHistory(patientId);
 });

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../config/router/role_nav_config.dart';
 import '../../../../config/router/route_paths.dart';
 import '../../../../config/theme/app_colors.dart';
+import '../../../patient/domain/entities/patient_profile.dart';
 import '../../../patient/presentation/providers/patient_providers.dart';
 import '../providers/auth_providers.dart';
 import '../state/auth_state.dart';
@@ -21,11 +22,27 @@ class _SplashPageState extends ConsumerState<SplashPage> {
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(milliseconds: 900), _navigateNext);
+    _navigateNext();
   }
 
-  void _navigateNext() {
+  Future<void> _navigateNext() async {
+    // Minimum time the brand screen stays up, so it reads as intentional
+    // rather than a flicker.
+    await Future.delayed(const Duration(milliseconds: 900));
+
+    // The session restore may still be running. Waiting for it is the whole
+    // point: treating "not yet authenticated" as "not signed in" is what
+    // sends an already-signed-in user to the login screen. A short poll is
+    // deliberate here — the window is sub-second, and a listener subscription
+    // in initState needs disposal handling this does not otherwise need.
+    final deadline = DateTime.now().add(const Duration(seconds: 8));
+    while (mounted &&
+        ref.read(authControllerProvider) is AuthLoading &&
+        DateTime.now().isBefore(deadline)) {
+      await Future.delayed(const Duration(milliseconds: 50));
+    }
     if (!mounted) return;
+
     final authState = ref.read(authControllerProvider);
     if (authState is! AuthAuthenticated) {
       context.go(RoutePaths.login);
@@ -36,9 +53,26 @@ class _SplashPageState extends ConsumerState<SplashPage> {
       context.go(RoutePaths.forcePasswordChange);
       return;
     }
-    if (user.role.name == 'patient' && !ref.read(onboardingCompleteProvider(user.id))) {
-      context.go(RoutePaths.onboardingWellnessGoals);
-      return;
+    // Await the settled profile rather than sampling whatever the FutureProvider
+    // currently holds — a still-loading profile is not "no profile", and
+    // treating it as one is what sends an already-onboarded patient back
+    // through onboarding on every launch.
+    if (user.role.name == 'patient') {
+      // A failed profile fetch must not strand the user here. The router
+      // exempts /splash from redirect, so nothing else will move them.
+      PatientProfile? profile;
+      try {
+        profile = await ref.read(patientProfileProvider(user.id).future);
+      } catch (_) {
+        if (!mounted) return;
+        context.go(RoutePaths.login);
+        return;
+      }
+      if (!mounted) return;
+      if (profile == null) {
+        context.go(RoutePaths.onboardingWellnessGoals);
+        return;
+      }
     }
     context.go(kRoleNavConfig[user.role]!.rootPath);
   }
@@ -65,7 +99,11 @@ class _SplashPageState extends ConsumerState<SplashPage> {
                   color: Colors.white.withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Icon(Icons.monitor_heart_outlined, color: Colors.white, size: 36),
+                child: const Icon(
+                  Icons.monitor_heart_outlined,
+                  color: Colors.white,
+                  size: 36,
+                ),
               ),
               const SizedBox(height: 20),
               const Text(
@@ -80,7 +118,10 @@ class _SplashPageState extends ConsumerState<SplashPage> {
               const SizedBox(height: 6),
               Text(
                 'Your health journey, in your pocket',
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 13),
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.85),
+                  fontSize: 13,
+                ),
               ),
             ],
           ),

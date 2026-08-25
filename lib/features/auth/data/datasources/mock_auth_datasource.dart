@@ -46,8 +46,14 @@ class MockAuthDataSource implements AuthDataSource {
     if (!match.isActive) {
       throw AuthException('This account has been deactivated. Contact your clinic administrator.');
     }
+    // Mirrors SupabaseAuthDataSource: staff are web-only, patients mobile-only.
+    // The mock has to enforce both halves or tests pass against a rule the real
+    // backend does not have.
     if (!isWebPlatform && match.role != UserRole.patient) {
       throw AuthException('Doctor and pharmacist accounts sign in through the MyPulse360 web dashboard.');
+    }
+    if (isWebPlatform && match.role == UserRole.patient) {
+      throw AuthException('Patient accounts sign in through the MyPulse360 mobile app.');
     }
     return match;
   }
@@ -122,8 +128,12 @@ class MockAuthDataSource implements AuthDataSource {
   }
 
   @override
-  List<AppUser> getStaffAccounts() => _db.users.where((u) => u.role != UserRole.patient).toList();
+  Future<List<AppUser>> getStaffAccounts() async =>
+      _db.users.where((u) => u.role != UserRole.patient).toList();
 
   @override
-  AppUser? getUserById(String id) => _db.userById(id);
+  Future<AppUser?> getUserById(String id) async => _db.userById(id);
+
+  @override
+  Future<void> logout() async {}
 }

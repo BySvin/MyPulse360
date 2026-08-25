@@ -6,6 +6,7 @@ import '../../../../config/router/route_paths.dart';
 import '../../../../config/theme/app_colors.dart';
 import '../../../../config/theme/app_radii.dart';
 import '../../../../config/theme/app_theme.dart';
+import '../../../../shared/presentation/widgets/async_section.dart';
 import '../../../../shared/presentation/widgets/section_header.dart';
 import '../../../../shared/utils/date_formatters.dart';
 import '../../../appointments/presentation/pages/book_appointment_page.dart';
@@ -35,17 +36,22 @@ class DashboardPage extends ConsumerWidget {
     final user = ref.watch(currentUserProvider);
     if (user == null) return const SizedBox.shrink();
 
-    final goals = ref.watch(wellnessGoalsProvider(user.id));
-    final profile = ref.watch(patientProfileProvider(user.id));
+    // Read as AsyncValue, not `.valueOrNull` — this page makes claims
+    // ("No goals yet", the insight cards) that must wait for a settled
+    // value rather than collapsing a loading/errored fetch into "empty".
+    final goalsAsync = ref.watch(wellnessGoalsProvider(user.id));
+    final profileAsync = ref.watch(patientProfileProvider(user.id));
     final vitals = ref.watch(dashboardSummariesProvider(user.id));
-    final insights =
-        profile == null ? const <HealthInsight>[] : buildHealthInsights(profile, goals, vitals: vitals);
-    final nextAppointment = ref.watch(nextUpcomingAppointmentProvider(user.id));
+    final nextAppointment = ref
+        .watch(nextUpcomingAppointmentProvider(user.id))
+        .valueOrNull;
     final doctor = nextAppointment == null
         ? null
-        : ref.watch(authRepositoryProvider).getUserById(nextAppointment.doctorId);
+        : ref.watch(userProfileProvider(nextAppointment.doctorId)).valueOrNull;
     final now = DateTime.now();
-    final greeting = now.hour < 12 ? 'Good morning' : (now.hour < 18 ? 'Good afternoon' : 'Good evening');
+    final greeting = now.hour < 12
+        ? 'Good morning'
+        : (now.hour < 18 ? 'Good afternoon' : 'Good evening');
     final firstName = user.fullName.split(' ').first;
 
     return Scaffold(
@@ -60,11 +66,17 @@ class DashboardPage extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('$greeting, $firstName', style: Theme.of(context).textTheme.headlineMedium),
+                      Text(
+                        '$greeting, $firstName',
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
                       const SizedBox(height: 2),
                       Text(
                         DateFormatters.full(now),
-                        style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: colors.textSecondary,
+                        ),
                       ),
                     ],
                   ),
@@ -77,7 +89,11 @@ class DashboardPage extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: colors.border),
                   ),
-                  child: Icon(Icons.notifications_rounded, size: 20, color: colors.textPrimary),
+                  child: Icon(
+                    Icons.notifications_rounded,
+                    size: 20,
+                    color: colors.textPrimary,
+                  ),
                 ),
               ],
             ),
@@ -91,7 +107,9 @@ class DashboardPage extends ConsumerWidget {
                     subtitle: 'Schedule your next visit',
                     background: AppColors.inkBlack,
                     onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const BookAppointmentPage()),
+                      MaterialPageRoute(
+                        builder: (_) => const BookAppointmentPage(),
+                      ),
                     ),
                   ),
                 ),
@@ -107,30 +125,52 @@ class DashboardPage extends ConsumerWidget {
                 ),
               ],
             ),
-            if (profile != null) ...[
-              const SizedBox(height: 20),
-              HealthSnapshotCard(profile: profile),
-            ],
-            if (insights.isNotEmpty) ...[
-              const SizedBox(height: 20),
-              Text('Wellness Insights', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 10),
-              Column(
-                children: [
-                  for (final insight in insights) ...[
-                    WellnessInsightCard(insight: insight),
-                    const SizedBox(height: 8),
+            // The snapshot card and insight list both make claims derived
+            // from the profile (and, for insights, goals). Neither may
+            // render until the profile fetch has settled — a still-loading
+            // profile is not "no profile", and rendering nothing/wrong
+            // during that window is what finding 2 flagged.
+            AsyncSection(
+              value: profileAsync,
+              data: (profile) {
+                if (profile == null) return const SizedBox.shrink();
+                final insights = buildHealthInsights(
+                  profile,
+                  goalsAsync.valueOrNull ?? [],
+                  vitals: vitals,
+                );
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 20),
+                    HealthSnapshotCard(profile: profile),
+                    if (insights.isNotEmpty) ...[
+                      const SizedBox(height: 20),
+                      Text(
+                        'Wellness Insights',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 10),
+                      Column(
+                        children: [
+                          for (final insight in insights) ...[
+                            WellnessInsightCard(insight: insight),
+                            const SizedBox(height: 8),
+                          ],
+                        ],
+                      ),
+                    ],
                   ],
-                ],
-              ),
-            ],
+                );
+              },
+            ),
             const SizedBox(height: 24),
             SectionHeader(
               title: 'Health Tips',
               actionLabel: 'See all',
-              onAction: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const HealthTipsPage()),
-              ),
+              onAction: () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const HealthTipsPage())),
             ),
             const SizedBox(height: 10),
             SizedBox(
@@ -139,23 +179,40 @@ class DashboardPage extends ConsumerWidget {
                 scrollDirection: Axis.horizontal,
                 itemCount: kHealthTips.length,
                 separatorBuilder: (_, _) => const SizedBox(width: 12),
-                itemBuilder: (context, i) => HealthTipCard(tip: kHealthTips[i], width: 220),
+                itemBuilder: (context, i) =>
+                    HealthTipCard(tip: kHealthTips[i], width: 220),
               ),
             ),
             const SizedBox(height: 24),
-            SectionHeader(title: 'Your Goals This Week', actionLabel: goals.isEmpty ? null : 'See all'),
+            SectionHeader(
+              title: 'Your Goals This Week',
+              // Hiding the shortcut while unsettled is a safe default (it
+              // declines to act), unlike the "No goals yet" text below,
+              // which would be a false claim if shown before goals load.
+              actionLabel: (goalsAsync.valueOrNull?.isEmpty ?? true)
+                  ? null
+                  : 'See all',
+            ),
             const SizedBox(height: 10),
-            if (goals.isEmpty)
-              Text('No goals yet — add some from your profile.', style: TextStyle(color: colors.textSecondary, fontSize: 12))
-            else
-              Column(
-                children: [
-                  for (final goal in goals) ...[
-                    WellnessGoalRow(goal: goal),
-                    const SizedBox(height: 10),
-                  ],
-                ],
-              ),
+            AsyncSection(
+              value: goalsAsync,
+              data: (goals) => goals.isEmpty
+                  ? Text(
+                      'No goals yet — add some from your profile.',
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    )
+                  : Column(
+                      children: [
+                        for (final goal in goals) ...[
+                          WellnessGoalRow(goal: goal),
+                          const SizedBox(height: 10),
+                        ],
+                      ],
+                    ),
+            ),
             const SizedBox(height: 6),
             if (nextAppointment != null &&
                 nextAppointment.scheduledAt.year == now.year &&
@@ -164,24 +221,41 @@ class DashboardPage extends ConsumerWidget {
               GestureDetector(
                 onTap: () => context.go(RoutePaths.patientQueue),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
                   margin: const EdgeInsets.only(bottom: 12),
                   decoration: BoxDecoration(
                     color: colors.info.withValues(alpha: 0.08),
-                    border: Border.all(color: colors.info.withValues(alpha: 0.4)),
+                    border: Border.all(
+                      color: colors.info.withValues(alpha: 0.4),
+                    ),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.confirmation_number_outlined, size: 18, color: colors.info),
+                      Icon(
+                        Icons.confirmation_number_outlined,
+                        size: 18,
+                        color: colors.info,
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           "You're checked in today — view your live queue number",
-                          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: colors.textPrimary),
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                            color: colors.textPrimary,
+                          ),
                         ),
                       ),
-                      Icon(Icons.chevron_right, size: 18, color: colors.textSecondary),
+                      Icon(
+                        Icons.chevron_right,
+                        size: 18,
+                        color: colors.textSecondary,
+                      ),
                     ],
                   ),
                 ),
@@ -191,14 +265,22 @@ class DashboardPage extends ConsumerWidget {
               NextAppointmentBanner(
                 appointment: nextAppointment,
                 doctorName: doctor?.fullName ?? 'Your doctor',
-                onViewDetails: () => context.push(RoutePaths.appointmentDetail(nextAppointment.id)),
+                onViewDetails: () => context.push(
+                  RoutePaths.appointmentDetail(nextAppointment.id),
+                ),
                 onReschedule: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => ReschedulePage(appointment: nextAppointment)),
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        ReschedulePage(appointment: nextAppointment),
+                  ),
                 ),
               ),
               const SizedBox(height: 20),
             ],
-            Text('Today\'s Reminders', style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              'Today\'s Reminders',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: 10),
             Container(
               decoration: BoxDecoration(
@@ -266,12 +348,19 @@ class _HeroActionCard extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 11),
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.75),
+                    fontSize: 11,
+                  ),
                 ),
               ],
             ),

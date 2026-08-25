@@ -5,9 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../../../../config/router/role_nav_config.dart';
 import '../../../../config/router/route_paths.dart';
 import '../../../../config/theme/app_theme.dart';
-import '../../../../shared/mock/fixtures/seed_credentials.dart';
 import '../../../../shared/presentation/widgets/app_text_field.dart';
 import '../../../../shared/presentation/widgets/primary_button.dart';
+import '../../../patient/domain/entities/patient_profile.dart';
 import '../../../patient/presentation/providers/patient_providers.dart';
 import '../providers/auth_providers.dart';
 import '../state/auth_state.dart';
@@ -33,17 +33,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   Future<void> _submit() async {
     await ref
         .read(authControllerProvider.notifier)
-        .login(email: _emailController.text, password: _passwordController.text);
-    _handlePostAuth();
+        .login(
+          email: _emailController.text,
+          password: _passwordController.text,
+        );
+    await _handlePostAuth();
   }
 
-  Future<void> _quickSignIn(String email) async {
-    _emailController.text = email;
-    await ref.read(authControllerProvider.notifier).login(email: email, password: kDemoAccountPassword);
-    _handlePostAuth();
-  }
-
-  void _handlePostAuth() {
+  Future<void> _handlePostAuth() async {
     final state = ref.read(authControllerProvider);
     if (state is! AuthAuthenticated || !mounted) return;
     final user = state.user;
@@ -51,9 +48,37 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       context.go(RoutePaths.forcePasswordChange);
       return;
     }
-    if (user.role.name == 'patient' && !ref.read(onboardingCompleteProvider(user.id))) {
-      context.go(RoutePaths.onboardingWellnessGoals);
-      return;
+    // Await the settled profile rather than sampling whatever the
+    // FutureProvider currently holds — see splash_page.dart for why.
+    if (user.role.name == 'patient') {
+      // Unlike splash_page.dart there is nowhere to "fall back" to — the
+      // user is already on the login screen. This is deliberately not
+      // routed through authControllerProvider's AuthError: login itself
+      // succeeded, this is a separate failure (the onboarding check), and
+      // misreporting it as an auth failure would be wrong for every other
+      // listener of that state (the router included). Surface it the same
+      // way the AuthError listener below does, directly.
+      PatientProfile? profile;
+      try {
+        profile = await ref.read(patientProfileProvider(user.id).future);
+      } catch (_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text(
+                "Couldn't load your profile. Please try signing in again.",
+              ),
+            ),
+          );
+        return;
+      }
+      if (!mounted) return;
+      if (profile == null) {
+        context.go(RoutePaths.onboardingWellnessGoals);
+        return;
+      }
     }
     context.go(kRoleNavConfig[user.role]!.rootPath);
   }
@@ -83,13 +108,21 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 width: 52,
                 height: 52,
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [colors.success, colors.info]),
+                  gradient: LinearGradient(
+                    colors: [colors.success, colors.info],
+                  ),
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: const Icon(Icons.monitor_heart_outlined, color: Colors.white),
+                child: const Icon(
+                  Icons.monitor_heart_outlined,
+                  color: Colors.white,
+                ),
               ),
               const SizedBox(height: 20),
-              Text('Welcome back', style: Theme.of(context).textTheme.headlineMedium),
+              Text(
+                'Welcome back',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
               const SizedBox(height: 4),
               Text(
                 'Sign in to continue to MyPulse360',
@@ -110,7 +143,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 autofillHints: const [AutofillHints.password],
               ),
               const SizedBox(height: 24),
-              PrimaryButton(label: 'Sign In', onPressed: _submit, loading: loading),
+              PrimaryButton(
+                label: 'Sign In',
+                onPressed: _submit,
+                loading: loading,
+              ),
               const SizedBox(height: 12),
               Center(
                 child: TextButton(
@@ -118,49 +155,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   child: const Text("Don't have an account? Sign up"),
                 ),
               ),
-              const SizedBox(height: 28),
-              Row(
-                children: [
-                  Expanded(child: Divider(color: colors.border)),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: Text('Quick demo sign-in', style: TextStyle(fontSize: 11, color: colors.textTertiary)),
-                  ),
-                  Expanded(child: Divider(color: colors.border)),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _PersonaChip(label: 'Sarah (Patient)', onTap: () => _quickSignIn('sarah@example.com')),
-                  _PersonaChip(label: 'Dr. Ahmed (Doctor)', onTap: () => _quickSignIn('dr.ahmed@mypulse360.clinic')),
-                  _PersonaChip(label: 'Fatima (Pharmacist)', onTap: () => _quickSignIn('fatima@mypulse360.clinic')),
-                ],
-              ),
             ],
           ),
         ),
       ),
-    );
-  }
-}
-
-class _PersonaChip extends StatelessWidget {
-  const _PersonaChip({required this.label, required this.onTap});
-
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    return ActionChip(
-      label: Text(label, style: const TextStyle(fontSize: 12)),
-      backgroundColor: colors.surfaceMuted,
-      side: BorderSide(color: colors.border),
-      onPressed: onTap,
     );
   }
 }

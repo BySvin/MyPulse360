@@ -1,13 +1,20 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 
 import '../../../../config/constants/hive_boxes.dart';
+import '../../../../config/env/env.dart';
+import '../../../../shared/data/supabase_providers.dart';
 import '../../../../shared/mock/mock_database.dart';
+import '../../../../shared/mock/mock_ids.dart';
+import '../../../patient/presentation/providers/patient_providers.dart';
 import '../../data/datasources/auth_datasource.dart';
 import '../../data/datasources/mock_auth_datasource.dart';
+import '../../data/datasources/supabase_auth_datasource.dart';
 import '../../data/repositories/auth_repository_impl.dart';
 import '../../domain/entities/app_user.dart';
+import '../../domain/entities/user_role.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../../domain/usecases/change_password_usecase.dart';
 import '../../domain/usecases/login_usecase.dart';
@@ -16,7 +23,9 @@ import '../../domain/usecases/sign_up_usecase.dart';
 import '../state/auth_state.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
-  final AuthDataSource dataSource = MockAuthDataSource(ref.watch(mockDatabaseProvider));
+  final AuthDataSource dataSource = Env.isMockMode
+      ? MockAuthDataSource(ref.watch(mockDatabaseProvider))
+      : SupabaseAuthDataSource(ref.watch(supabaseClientProvider));
   return AuthRepositoryImpl(dataSource);
 });
 
@@ -26,11 +35,23 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
 /// needing to fake the platform.
 final isWebPlatformProvider = Provider<bool>((ref) => kIsWeb);
 
-final authControllerProvider = NotifierProvider<AuthController, AuthState>(AuthController.new);
+final authControllerProvider = NotifierProvider<AuthController, AuthState>(
+  AuthController.new,
+);
 
 final currentUserProvider = Provider<AppUser?>((ref) {
   final state = ref.watch(authControllerProvider);
   return state is AuthAuthenticated ? state.user : null;
+});
+
+/// One profile, by id. Widgets that show a doctor's or patient's name read
+/// this instead of calling the repository, because that call is a network
+/// round trip now and a `build()` cannot await.
+///
+/// Not auto-disposed: the same handful of ids are read across many screens,
+/// and re-fetching a name on every navigation is wasted latency.
+final userProfileProvider = FutureProvider.family<AppUser?, String>((ref, id) {
+  return ref.watch(authRepositoryProvider).getUserById(id);
 });
 
 class AuthController extends Notifier<AuthState> {
@@ -38,10 +59,62 @@ class AuthController extends Notifier<AuthState> {
 
   @override
   AuthState build() {
-    final storedId = _box.get(HiveBoxes.keyCurrentUserId) as String?;
-    if (storedId == null) return const AuthUnauthenticated();
-    final user = ref.read(authRepositoryProvider).getUserById(storedId);
-    return user != null ? AuthAuthenticated(user) : const AuthUnauthenticated();
+    if (Env.isMockMode) {
+      final storedId = _box.get(HiveBoxes.keyCurrentUserId) as String?;
+      if (storedId == null) return const AuthUnauthenticated();
+      // Mock lookups are in-memory, so this future completes synchronously
+      // enough that the splash screen never appears.
+      _restore(storedId);
+      return const AuthLoading();
+    }
+
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session == null) return const AuthUnauthenticated();
+    _restore(session.user.id);
+    return const AuthLoading();
+  }
+
+  /// Fetches the profile behind an already-valid session. A failure here
+  /// means the session is good but the profile is not readable, which is a
+  /// real error rather than a reason to show the login screen.
+  Future<void> _restore(String userId) async {
+    try {
+      final user = await ref.read(authRepositoryProvider).getUserById(userId);
+      if (user == null) {
+        state = const AuthUnauthenticated();
+        return;
+      }
+      await _ensureMockPatientProfile(user);
+      state = AuthAuthenticated(user);
+    } catch (e) {
+      state = AuthError(e.toString());
+    }
+  }
+
+  /// Exists only because the mock has no equivalent of `register_patient()`
+  /// (`supabase/migrations/0018_register_patient.sql`), which inserts the
+  /// `patient_profiles` row and assigns the default doctor in the same
+  /// transaction as sign-up, in Supabase mode. In mock mode nothing else
+  /// creates that row — none of the onboarding pages do (they only call
+  /// `updateProfile`, which throws `StateError('Patient profile not found')`
+  /// against an absent row) — so without this a newly signed-up mock patient
+  /// would reach onboarding step 2 and crash.
+  ///
+  /// This lives here rather than in the sign-up page because it must also run
+  /// on login and on a restored session: the mock resets on relaunch, so
+  /// creating the row once at registration does not survive.
+  Future<void> _ensureMockPatientProfile(AppUser user) async {
+    if (!Env.isMockMode) return;
+    if (user.role != UserRole.patient) return;
+    final existing = await ref.read(patientProfileProvider(user.id).future);
+    if (existing != null) return;
+    await ref
+        .read(patientRepositoryProvider)
+        .createInitialProfile(
+          patientId: user.id,
+          assignedDoctorId: MockIds.drAhmedUserId,
+        );
+    ref.read(patientDataRevisionProvider.notifier).state++;
   }
 
   Future<void> login({required String email, required String password}) async {
@@ -52,7 +125,10 @@ class AuthController extends Notifier<AuthState> {
         password: password,
         isWebPlatform: ref.read(isWebPlatformProvider),
       );
-      await _box.put(HiveBoxes.keyCurrentUserId, user.id);
+      if (Env.isMockMode) {
+        await _box.put(HiveBoxes.keyCurrentUserId, user.id);
+      }
+      await _ensureMockPatientProfile(user);
       state = AuthAuthenticated(user);
     } catch (e) {
       state = AuthError(e.toString());
@@ -66,12 +142,13 @@ class AuthController extends Notifier<AuthState> {
   }) async {
     state = const AuthLoading();
     try {
-      final user = await SignUpUseCase(ref.read(authRepositoryProvider)).call(
-        email: email,
-        password: password,
-        fullName: fullName,
-      );
-      await _box.put(HiveBoxes.keyCurrentUserId, user.id);
+      final user = await SignUpUseCase(
+        ref.read(authRepositoryProvider),
+      ).call(email: email, password: password, fullName: fullName);
+      if (Env.isMockMode) {
+        await _box.put(HiveBoxes.keyCurrentUserId, user.id);
+      }
+      await _ensureMockPatientProfile(user);
       state = AuthAuthenticated(user);
     } catch (e) {
       state = AuthError(e.toString());
@@ -86,8 +163,12 @@ class AuthController extends Notifier<AuthState> {
     state = const AuthLoading();
     try {
       final repository = ref.read(authRepositoryProvider);
-      await ChangePasswordUseCase(repository).call(userId: current.user.id, newPassword: newPassword);
-      state = AuthAuthenticated(repository.getUserById(current.user.id)!);
+      await ChangePasswordUseCase(
+        repository,
+      ).call(userId: current.user.id, newPassword: newPassword);
+      state = AuthAuthenticated(
+        (await repository.getUserById(current.user.id))!,
+      );
     } catch (e) {
       state = AuthError(e.toString());
     }
@@ -95,7 +176,9 @@ class AuthController extends Notifier<AuthState> {
 
   Future<void> logout() async {
     await LogoutUseCase(ref.read(authRepositoryProvider)).call();
-    await _box.delete(HiveBoxes.keyCurrentUserId);
+    if (Env.isMockMode) {
+      await _box.delete(HiveBoxes.keyCurrentUserId);
+    }
     state = const AuthUnauthenticated();
   }
 }

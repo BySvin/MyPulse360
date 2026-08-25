@@ -2,9 +2,9 @@ import '../entities/patient_profile.dart';
 import '../entities/wellness_goal.dart';
 
 abstract class PatientRepository {
-  PatientProfile? getProfile(String patientId);
+  Future<PatientProfile?> getProfile(String patientId);
 
-  List<WellnessGoal> getWellnessGoals(String patientId);
+  Future<List<WellnessGoal>> getWellnessGoals(String patientId);
 
   /// Creates a bare profile immediately after signup — before any of the
   /// onboarding steps run — so Emergency Contact / Healthcare Preferences

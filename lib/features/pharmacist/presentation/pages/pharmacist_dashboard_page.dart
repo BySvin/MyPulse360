@@ -66,7 +66,7 @@ class PharmacistDashboardPage extends ConsumerWidget {
                 rows: [
                   for (final rx in queue)
                     Builder(builder: (context) {
-                      final patient = ref.watch(authRepositoryProvider).getUserById(rx.patientId);
+                      final patient = ref.watch(userProfileProvider(rx.patientId)).valueOrNull;
                       final name = patient?.fullName ?? 'Patient';
                       final medNames = rx.items.map((i) => i.medicationName).join(', ');
                       final wait = QueueWait.forPrescription(rx);
@@ -114,7 +114,7 @@ class PharmacistDashboardPage extends ConsumerWidget {
             else
               for (final rx in queue) ...[
                 Builder(builder: (context) {
-                  final patient = ref.watch(authRepositoryProvider).getUserById(rx.patientId);
+                  final patient = ref.watch(userProfileProvider(rx.patientId)).valueOrNull;
                   return PharmacyQueueTile(
                     prescription: rx,
                     patientName: patient?.fullName ?? 'Patient',

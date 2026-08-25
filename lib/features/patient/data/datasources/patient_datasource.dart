@@ -2,9 +2,9 @@ import '../../domain/entities/patient_profile.dart';
 import '../../domain/entities/wellness_goal.dart';
 
 abstract class PatientDataSource {
-  PatientProfile? getProfile(String patientId);
+  Future<PatientProfile?> getProfile(String patientId);
 
-  List<WellnessGoal> getWellnessGoals(String patientId);
+  Future<List<WellnessGoal>> getWellnessGoals(String patientId);
 
   Future<PatientProfile> createInitialProfile({
     required String patientId,

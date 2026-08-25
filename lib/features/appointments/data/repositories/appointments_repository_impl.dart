@@ -9,17 +9,31 @@ class AppointmentsRepositoryImpl implements AppointmentsRepository {
   final AppointmentsDataSource _dataSource;
 
   @override
-  List<Appointment> getForPatient(String patientId) => _dataSource.getForPatient(patientId);
+  Future<List<Appointment>> getForPatient(String patientId) =>
+      _dataSource.getForPatient(patientId);
 
   @override
-  List<Appointment> getForDoctor(String doctorId) => _dataSource.getForDoctor(doctorId);
+  Future<List<Appointment>> getForDoctor(String doctorId) =>
+      _dataSource.getForDoctor(doctorId);
 
   @override
-  Appointment? getNextUpcoming(String patientId) => _dataSource.getNextUpcoming(patientId);
+  Stream<Appointment?> watchNextUpcoming(String patientId) =>
+      _dataSource.watchNextUpcoming(patientId);
 
   @override
-  List<TimeSlot> getAvailableSlots({required String doctorId, required DateTime date}) =>
-      _dataSource.getAvailableSlots(doctorId: doctorId, date: date);
+  Stream<List<Appointment>> watchTodaysQueue(String doctorId) =>
+      _dataSource.watchTodaysQueue(doctorId);
+
+  @override
+  Future<List<TimeSlot>> getAvailableSlots({
+    required String doctorId,
+    required DateTime date,
+  }) => _dataSource.getAvailableSlots(doctorId: doctorId, date: date);
+
+  @override
+  Future<List<({DateTime day, int openSlots, bool isOnLeave})>>
+  getMonthAvailability({required String doctorId, required DateTime month}) =>
+      _dataSource.getMonthAvailability(doctorId: doctorId, month: month);
 
   @override
   Future<Appointment> book({
@@ -28,18 +42,19 @@ class AppointmentsRepositoryImpl implements AppointmentsRepository {
     required DateTime scheduledAt,
     required String appointmentType,
     String? reasonForVisit,
-  }) =>
-      _dataSource.book(
-        patientId: patientId,
-        doctorId: doctorId,
-        scheduledAt: scheduledAt,
-        appointmentType: appointmentType,
-        reasonForVisit: reasonForVisit,
-      );
+  }) => _dataSource.book(
+    patientId: patientId,
+    doctorId: doctorId,
+    scheduledAt: scheduledAt,
+    appointmentType: appointmentType,
+    reasonForVisit: reasonForVisit,
+  );
 
   @override
-  Future<Appointment> updateStatus(String appointmentId, AppointmentStatus status) =>
-      _dataSource.updateStatus(appointmentId, status);
+  Future<Appointment> updateStatus(
+    String appointmentId,
+    AppointmentStatus status,
+  ) => _dataSource.updateStatus(appointmentId, status);
 
   @override
   Future<Appointment> reschedule(String appointmentId, DateTime newTime) =>

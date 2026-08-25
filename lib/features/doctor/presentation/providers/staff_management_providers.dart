@@ -9,7 +9,7 @@ final staffAccountsRevisionProvider = StateProvider<int>((ref) => 0);
 
 /// Doctor + pharmacist accounts — backs the doctor-only Staff Management
 /// screen. Never includes patients.
-final staffAccountsProvider = Provider<List<AppUser>>((ref) {
+final staffAccountsProvider = FutureProvider<List<AppUser>>((ref) {
   ref.watch(staffAccountsRevisionProvider);
   return ref.watch(authRepositoryProvider).getStaffAccounts();
 });

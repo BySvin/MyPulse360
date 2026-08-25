@@ -49,11 +49,11 @@ class AuthRepositoryImpl implements AuthRepository {
       _dataSource.changePassword(userId: userId, newPassword: newPassword);
 
   @override
-  List<AppUser> getStaffAccounts() => _dataSource.getStaffAccounts();
+  Future<List<AppUser>> getStaffAccounts() => _dataSource.getStaffAccounts();
 
   @override
-  Future<void> logout() async {}
+  Future<void> logout() => _dataSource.logout();
 
   @override
-  AppUser? getUserById(String id) => _dataSource.getUserById(id);
+  Future<AppUser?> getUserById(String id) => _dataSource.getUserById(id);
 }

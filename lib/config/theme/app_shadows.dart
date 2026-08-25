@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 
-/// Elevation presets — warmed slightly (a hint of brown instead of pure
-/// black) to sit naturally on the cream background.
+/// Elevation presets — tinted with the ink hue (#1B2A38) rather than neutral
+/// black, so a card sits *on* the warm paper ground instead of hovering over
+/// it. Two levels only: resting and lifted.
 abstract final class AppShadows {
   static const List<BoxShadow> card = [
-    BoxShadow(color: Color(0x1A1A1410), blurRadius: 10, offset: Offset(0, 3)),
-    BoxShadow(color: Color(0x0D1A1410), blurRadius: 2, offset: Offset(0, 1)),
+    BoxShadow(color: Color(0x141B2A38), blurRadius: 16, offset: Offset(0, 6)),
+    BoxShadow(color: Color(0x0D1B2A38), blurRadius: 2, offset: Offset(0, 1)),
   ];
 
   static const List<BoxShadow> elevated = [
-    BoxShadow(color: Color(0x261A1410), blurRadius: 20, offset: Offset(0, 8)),
+    BoxShadow(color: Color(0x241B2A38), blurRadius: 32, offset: Offset(0, 14)),
   ];
 
   static const List<BoxShadow> none = [];

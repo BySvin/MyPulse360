@@ -67,7 +67,7 @@ class _PrescriptionVerificationPageState extends ConsumerState<PrescriptionVerif
       return const Scaffold(body: Center(child: Text('Prescription not found')));
     }
     final prescription = matches.first;
-    final patient = ref.watch(authRepositoryProvider).getUserById(prescription.patientId);
+    final patient = ref.watch(userProfileProvider(prescription.patientId)).valueOrNull;
     final allChecked = _checked.length == kVerificationSteps.length;
 
     return Scaffold(

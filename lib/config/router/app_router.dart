@@ -28,13 +28,11 @@ import '../../features/patient/presentation/pages/onboarding_wellness_goals_page
 import '../../features/patient/presentation/pages/profile_page.dart';
 import '../../features/patient/presentation/providers/patient_providers.dart';
 import '../../features/pharmacist/presentation/pages/create_prescription_page.dart';
-import '../../features/pharmacist/presentation/pages/inventory_page.dart';
 import '../../features/pharmacist/presentation/pages/pharmacist_dashboard_page.dart';
 import '../../features/pharmacist/presentation/pages/pharmacist_prescriptions_page.dart';
 import '../../features/pharmacist/presentation/pages/prescription_verification_page.dart';
 import '../../features/prescriptions/presentation/pages/prescriptions_list_page.dart';
-import '../../features/scheduling/presentation/pages/my_schedule_page.dart';
-import '../../features/scheduling/presentation/pages/schedule_page.dart';
+import '../../features/scheduling/presentation/pages/apply_leave_page.dart';
 import '../../shared/presentation/widgets/app_shell_scaffold.dart';
 import '../../shared/presentation/widgets/clinician_app_shell.dart';
 import '../theme/app_theme.dart';
@@ -59,9 +57,28 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     refreshListenable: refresh,
     redirect: (context, state) {
       final loc = state.matchedLocation;
+      final authState = ref.read(authControllerProvider);
+
+      // A session restore is in flight. Hold on the splash screen rather than
+      // flashing the login page at someone who is already signed in.
+      if (authState is AuthLoading) {
+        // Only a launch-time session restore should pin the user to splash.
+        // login/signUp/changePassword also set AuthLoading, and redirecting
+        // away from those pages mid-submit disposes them — their `!mounted`
+        // guards then swallow the rest of the handler and their error
+        // listeners die before the error ever arrives.
+        const inFlightOk = {
+          RoutePaths.splash,
+          RoutePaths.login,
+          RoutePaths.signUp,
+          RoutePaths.forcePasswordChange,
+        };
+        if (inFlightOk.contains(loc)) return null;
+        return RoutePaths.splash;
+      }
+
       if (loc == RoutePaths.splash) return null;
 
-      final authState = ref.read(authControllerProvider);
       final isAuthRoute = loc == RoutePaths.login || loc == RoutePaths.signUp;
 
       if (authState is! AuthAuthenticated) {
@@ -70,7 +87,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       final user = authState.user;
       if (user.mustChangePassword) {
-        return loc == RoutePaths.forcePasswordChange ? null : RoutePaths.forcePasswordChange;
+        return loc == RoutePaths.forcePasswordChange
+            ? null
+            : RoutePaths.forcePasswordChange;
+      }
+
+      // Don't answer the onboarding question until the answer has arrived.
+      // A profile that is still loading — or one whose fetch failed — is not
+      // "not onboarded"; treating either as false is what pinned real
+      // patients to the welcome screen before. Loading and failed are both
+      // "unknown", and only a settled value may decide this. On failure,
+      // splash_page.dart already routes to login and login_page.dart shows
+      // the error, so the router just needs to stay out of their way.
+      final profileAsync = ref.read(patientProfileProvider(user.id));
+      if (user.role == UserRole.patient && !profileAsync.hasValue) {
+        return null;
       }
 
       // "Onboarded" just means a profile row exists, which now happens
@@ -80,9 +111,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // just because a profile exists; only auth routes and the forced
       // password-change gate should ever redirect to the dashboard root.
       final onboarded =
-          user.role != UserRole.patient || ref.read(onboardingCompleteProvider(user.id));
+          user.role != UserRole.patient || profileAsync.valueOrNull != null;
       if (!onboarded) {
-        return loc == RoutePaths.onboardingWelcome ? null : RoutePaths.onboardingWelcome;
+        return loc == RoutePaths.onboardingWelcome
+            ? null
+            : RoutePaths.onboardingWelcome;
       }
 
       if (isAuthRoute || loc == RoutePaths.forcePasswordChange) {
@@ -135,7 +168,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: RoutePaths.patientAppointmentDetail,
-        builder: (_, state) => AppointmentDetailPage(appointmentId: state.pathParameters['appointmentId']!),
+        builder: (_, state) => AppointmentDetailPage(
+          appointmentId: state.pathParameters['appointmentId']!,
+        ),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) => AppShellScaffold(
@@ -145,7 +180,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         branches: [
           StatefulShellBranch(
             routes: [
-              GoRoute(path: RoutePaths.patientDashboard, builder: (_, _) => const DashboardPage()),
+              GoRoute(
+                path: RoutePaths.patientDashboard,
+                builder: (_, _) => const DashboardPage(),
+              ),
             ],
           ),
           StatefulShellBranch(
@@ -158,7 +196,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           StatefulShellBranch(
             routes: [
-              GoRoute(path: RoutePaths.patientQueue, builder: (_, _) => const QueueNumberPage()),
+              GoRoute(
+                path: RoutePaths.patientQueue,
+                builder: (_, _) => const QueueNumberPage(),
+              ),
             ],
           ),
           StatefulShellBranch(
@@ -179,7 +220,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           StatefulShellBranch(
             routes: [
-              GoRoute(path: RoutePaths.patientProfile, builder: (_, _) => const ProfilePage()),
+              GoRoute(
+                path: RoutePaths.patientProfile,
+                builder: (_, _) => const ProfilePage(),
+              ),
             ],
           ),
         ],
@@ -203,7 +247,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         branches: [
           StatefulShellBranch(
             routes: [
-              GoRoute(path: RoutePaths.doctorDashboard, builder: (_, _) => const DoctorDashboardPage()),
+              GoRoute(
+                path: RoutePaths.doctorDashboard,
+                builder: (_, _) => const DoctorDashboardPage(),
+              ),
             ],
           ),
           StatefulShellBranch(
@@ -216,7 +263,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           StatefulShellBranch(
             routes: [
-              GoRoute(path: RoutePaths.doctorSchedule, builder: (_, _) => const SchedulePage()),
+              GoRoute(
+                path: RoutePaths.doctorApplyLeave,
+                builder: (_, _) => const ApplyLeavePage(),
+              ),
             ],
           ),
         ],
@@ -229,7 +279,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: RoutePaths.pharmacistCreatePrescription,
-        builder: (_, state) => CreatePrescriptionPage(consultationId: state.pathParameters['consultationId']!),
+        builder: (_, state) => CreatePrescriptionPage(
+          consultationId: state.pathParameters['consultationId']!,
+        ),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) => ClinicianAppShell(
@@ -255,16 +307,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 path: RoutePaths.pharmacistPrescriptions,
                 builder: (_, _) => const PharmacistPrescriptionsPage(),
               ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(path: RoutePaths.pharmacistInventory, builder: (_, _) => const InventoryPage()),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(path: RoutePaths.pharmacistSchedule, builder: (_, _) => const MySchedulePage()),
             ],
           ),
         ],

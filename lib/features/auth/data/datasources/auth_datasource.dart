@@ -26,7 +26,9 @@ abstract class AuthDataSource {
 
   Future<void> changePassword({required String userId, required String newPassword});
 
-  List<AppUser> getStaffAccounts();
+  Future<List<AppUser>> getStaffAccounts();
 
-  AppUser? getUserById(String id);
+  Future<AppUser?> getUserById(String id);
+
+  Future<void> logout();
 }
