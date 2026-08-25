@@ -86,9 +86,40 @@ which looks exactly like working code.
 task, plus the two request-count assertions below). SQL suites unchanged and
 passing.
 
-### Not verified, and why
+### Verified by running the real code
 
-**The browser-driven matrix rows could not be run in this environment.** The
+Beyond the SQL, the **actual datasource classes** were driven against the live
+project — sign-in, profile, goals, slot fetch, book, duplicate-book, reschedule,
+cancel, the doctor's realtime queue, and a cross-patient read. This exercises the
+Dart mapping, timezone handling and error translation, not just the database:
+
+```
+first slot: raw=2026-08-26T01:00:00.000Z shown=9:00 AM
+duplicate refused: That time slot was just taken. Please pick another.
+queue today: 9:00 AM completed / 10:00 AM completed / 1:00 PM confirmed / 3:00 PM scheduled
+cross-patient read blocked
+```
+
+**This found a defect two rounds of review had passed.** `getForPatient` still
+returned newest-first after the "fix" for it, because postgrest-dart's `order()`
+defaults to **descending** — the opposite of SQL and of postgrest-js. Dropping
+`ascending: false` therefore changed nothing. The code read correctly, which is
+why review missed it twice; only running it showed the wrong order. Now set
+explicitly, with a test asserting the emitted query
+(`order=scheduled_at.asc`).
+
+The lesson is narrow and worth keeping: **a review can only check that code says
+what it means, not that a library means what it says.**
+
+### Not verified by me — checked by the developer instead
+
+#### The browser-driven UI
+
+The developer ran the Windows desktop build by hand after the timezone fix and
+confirmed the app behaves correctly end to end. That is their observation, not
+mine — recorded as such.
+
+**I could not drive the UI in this environment.** The
 Browser pane does not composite frames, and Flutter web paints to a canvas via
 `requestAnimationFrame` — with no compositing there is no `flt-scene`, no
 `<canvas>`, and an empty semantics tree. I confirmed all of that in the DOM. The
