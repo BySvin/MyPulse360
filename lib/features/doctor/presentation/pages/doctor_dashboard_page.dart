@@ -320,11 +320,13 @@ class _DoctorQueueRow extends ConsumerWidget {
         ? profile!.gender![0].toUpperCase()
         : '';
     final hasAllergies = profile != null && profile.allergies.isNotEmpty;
-    // While the profile is still loading, a patient WITH allergies is
-    // indistinguishable from one without — don't fall through to the status
-    // tag in that window, since that reads as an (unverified) "no
-    // allergies". Render neither tag until the profile settles.
-    final profileSettled = !profileAsync.isLoading;
+    // While the profile is still loading OR failed to load, a patient
+    // WITH allergies is indistinguishable from one without — don't fall
+    // through to the status tag in that window, since that reads as an
+    // (unverified) "no allergies". Render neither tag unless a real value
+    // actually arrived (hasValue, not just "not loading" — an error also
+    // satisfies !isLoading and must not be read as settled-and-clean).
+    final profileSettled = profileAsync.hasValue;
 
     return Container(
       padding: const EdgeInsets.all(12),

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../config/router/role_nav_config.dart';
 import '../../../../config/router/route_paths.dart';
 import '../../../../config/theme/app_colors.dart';
+import '../../../patient/domain/entities/patient_profile.dart';
 import '../../../patient/presentation/providers/patient_providers.dart';
 import '../providers/auth_providers.dart';
 import '../state/auth_state.dart';
@@ -57,7 +58,16 @@ class _SplashPageState extends ConsumerState<SplashPage> {
     // treating it as one is what sends an already-onboarded patient back
     // through onboarding on every launch.
     if (user.role.name == 'patient') {
-      final profile = await ref.read(patientProfileProvider(user.id).future);
+      // A failed profile fetch must not strand the user here. The router
+      // exempts /splash from redirect, so nothing else will move them.
+      PatientProfile? profile;
+      try {
+        profile = await ref.read(patientProfileProvider(user.id).future);
+      } catch (_) {
+        if (!mounted) return;
+        context.go(RoutePaths.login);
+        return;
+      }
       if (!mounted) return;
       if (profile == null) {
         context.go(RoutePaths.onboardingWellnessGoals);

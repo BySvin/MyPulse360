@@ -7,6 +7,7 @@ import '../../../../config/router/route_paths.dart';
 import '../../../../config/theme/app_theme.dart';
 import '../../../../shared/presentation/widgets/app_text_field.dart';
 import '../../../../shared/presentation/widgets/primary_button.dart';
+import '../../../patient/domain/entities/patient_profile.dart';
 import '../../../patient/presentation/providers/patient_providers.dart';
 import '../providers/auth_providers.dart';
 import '../state/auth_state.dart';
@@ -50,7 +51,29 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     // Await the settled profile rather than sampling whatever the
     // FutureProvider currently holds — see splash_page.dart for why.
     if (user.role.name == 'patient') {
-      final profile = await ref.read(patientProfileProvider(user.id).future);
+      // Unlike splash_page.dart there is nowhere to "fall back" to — the
+      // user is already on the login screen. This is deliberately not
+      // routed through authControllerProvider's AuthError: login itself
+      // succeeded, this is a separate failure (the onboarding check), and
+      // misreporting it as an auth failure would be wrong for every other
+      // listener of that state (the router included). Surface it the same
+      // way the AuthError listener below does, directly.
+      PatientProfile? profile;
+      try {
+        profile = await ref.read(patientProfileProvider(user.id).future);
+      } catch (_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text(
+                "Couldn't load your profile. Please try signing in again.",
+              ),
+            ),
+          );
+        return;
+      }
       if (!mounted) return;
       if (profile == null) {
         context.go(RoutePaths.onboardingWellnessGoals);
