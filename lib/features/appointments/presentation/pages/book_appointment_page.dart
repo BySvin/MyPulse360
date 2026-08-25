@@ -66,19 +66,32 @@ class _BookAppointmentPageState extends ConsumerState<BookAppointmentPage> {
     if (slot == null || _customTypeMissing) return;
     final customText = _customTypeController.text.trim();
     setState(() => _booking = true);
-    await ref
-        .read(appointmentsRepositoryProvider)
-        .book(
-          patientId: patientId,
-          doctorId: doctorId,
-          scheduledAt: slot.dateTime,
-          appointmentType: _isCustom ? customText : _type,
-          reasonForVisit: _isCustom ? customText : null,
-        );
-    ref.read(appointmentsRevisionProvider.notifier).state++;
-    if (!mounted) return;
-    setState(() => _booking = false);
-    Navigator.of(context).pop();
+    try {
+      await ref
+          .read(appointmentsRepositoryProvider)
+          .book(
+            patientId: patientId,
+            doctorId: doctorId,
+            scheduledAt: slot.dateTime,
+            appointmentType: _isCustom ? customText : _type,
+            reasonForVisit: _isCustom ? customText : null,
+          );
+      ref.read(appointmentsRevisionProvider.notifier).state++;
+      if (!mounted) return;
+      Navigator.of(context).pop();
+    } catch (e) {
+      // Someone booked this slot between the grid rendering and Confirm.
+      // Refresh so the grid shows the truth, and clear the stale selection.
+      ref.read(appointmentsRevisionProvider.notifier).state++;
+      if (!mounted) return;
+      setState(() {
+        _booking = false;
+        _selectedSlot = null;
+      });
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text('$e')));
+    }
   }
 
   @override
@@ -100,7 +113,18 @@ class _BookAppointmentPageState extends ConsumerState<BookAppointmentPage> {
       body: AsyncSection(
         value: profileAsync,
         data: (profile) {
-          final doctorId = profile?.assignedDoctorId ?? 'user-dr-ahmed';
+          final doctorId = profile?.assignedDoctorId;
+          if (doctorId == null || doctorId.isEmpty) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text(
+                  'No doctor is assigned to your account yet. Contact the clinic.',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            );
+          }
           final doctor = ref.watch(userProfileProvider(doctorId)).valueOrNull;
           final slotsAsync = ref.watch(
             availableSlotsProvider((doctorId: doctorId, date: _selectedDate)),

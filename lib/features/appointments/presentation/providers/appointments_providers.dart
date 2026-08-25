@@ -1,16 +1,21 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../config/env/env.dart';
+import '../../../../shared/data/supabase_providers.dart';
 import '../../../../shared/mock/mock_database.dart';
+import '../../data/datasources/appointments_datasource.dart';
 import '../../data/datasources/mock_appointments_datasource.dart';
+import '../../data/datasources/supabase_appointments_datasource.dart';
 import '../../data/repositories/appointments_repository_impl.dart';
 import '../../domain/entities/appointment.dart';
 import '../../domain/entities/time_slot.dart';
 import '../../domain/repositories/appointments_repository.dart';
 
 final appointmentsRepositoryProvider = Provider<AppointmentsRepository>((ref) {
-  return AppointmentsRepositoryImpl(
-    MockAppointmentsDataSource(ref.watch(mockDatabaseProvider)),
-  );
+  final AppointmentsDataSource dataSource = Env.isMockMode
+      ? MockAppointmentsDataSource(ref.watch(mockDatabaseProvider))
+      : SupabaseAppointmentsDataSource(ref.watch(supabaseClientProvider));
+  return AppointmentsRepositoryImpl(dataSource);
 });
 
 /// Kept, not deleted.

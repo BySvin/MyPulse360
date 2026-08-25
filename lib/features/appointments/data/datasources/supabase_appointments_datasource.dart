@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../shared/data/db_enums.dart';
 import '../../../../shared/data/db_failure.dart';
 import '../../../../shared/data/db_rows.dart';
 import '../../domain/entities/appointment.dart';
@@ -25,7 +26,7 @@ class SupabaseAppointmentsDataSource implements AppointmentsDataSource {
           .from('appointments')
           .select(_cols)
           .eq('patient_id', patientId)
-          .order('scheduled_at', ascending: false);
+          .order('scheduled_at');
       return rows.map(appointmentFromRow).toList();
     } catch (e) {
       throw mapPostgrestError(e);
@@ -75,7 +76,12 @@ class SupabaseAppointmentsDataSource implements AppointmentsDataSource {
       return (rows as List).map((r) {
         final m = Map<String, dynamic>.from(r as Map);
         return (
-          day: DateTime.parse(m['day'] as String),
+          // `month_availability.day` is a bare Postgres `date` (no time, no
+          // zone). `DateTime.parse` on that alone yields a local-time
+          // DateTime; appending T00:00:00Z pins it to UTC midnight instead,
+          // matching the invariant the rest of this file keeps via
+          // db_rows.dart's `_utc()`.
+          day: DateTime.parse('${m['day'] as String}T00:00:00Z'),
           openSlots: m['open_slots'] as int,
           isOnLeave: m['is_on_leave'] as bool,
         );
@@ -97,12 +103,12 @@ class SupabaseAppointmentsDataSource implements AppointmentsDataSource {
   /// table's primary key to diff rows.
   @override
   Stream<Appointment?> watchNextUpcoming(String patientId) {
-    final now = DateTime.now().toUtc();
     return _client
         .from('appointments')
         .stream(primaryKey: ['id'])
         .eq('patient_id', patientId)
         .map((rows) {
+          final now = DateTime.now().toUtc();
           final upcoming = rows
               .map((r) => appointmentFromRow(Map<String, dynamic>.from(r)))
               .where((a) =>
@@ -143,14 +149,50 @@ class SupabaseAppointmentsDataSource implements AppointmentsDataSource {
     required DateTime scheduledAt,
     required String appointmentType,
     String? reasonForVisit,
-  }) async =>
-      throw UnimplementedError('Booking lands in Task 6');
+  }) async {
+    try {
+      // patientId is ignored deliberately: book_appointment derives the patient
+      // from auth.uid() so a client cannot book on someone else's behalf.
+      final row = await _client.rpc('book_appointment', params: {
+        'p_doctor': doctorId,
+        'p_at': scheduledAt.toUtc().toIso8601String(),
+        'p_type': appointmentType,
+        'p_reason': reasonForVisit,
+      });
+      return appointmentFromRow(Map<String, dynamic>.from(row as Map));
+    } catch (e) {
+      throw mapPostgrestError(e);
+    }
+  }
 
   @override
-  Future<Appointment> updateStatus(String appointmentId, AppointmentStatus status) async =>
-      throw UnimplementedError('Status changes land in Task 6');
+  Future<Appointment> updateStatus(String appointmentId, AppointmentStatus status) async {
+    try {
+      // set_appointment_status's second parameter is the appointment_status
+      // enum, not text. appointmentStatusToDb(status) is a Dart String;
+      // PostgREST is expected to cast the JSON string to the enum, but that
+      // has not been verified against the live RPC (read-only constraint on
+      // this task) — flagged for the live pass in Task 8.
+      final row = await _client.rpc('set_appointment_status', params: {
+        'p_appointment': appointmentId,
+        'p_status': appointmentStatusToDb(status),
+      });
+      return appointmentFromRow(Map<String, dynamic>.from(row as Map));
+    } catch (e) {
+      throw mapPostgrestError(e);
+    }
+  }
 
   @override
-  Future<Appointment> reschedule(String appointmentId, DateTime newTime) async =>
-      throw UnimplementedError('Rescheduling lands in Task 6');
+  Future<Appointment> reschedule(String appointmentId, DateTime newTime) async {
+    try {
+      final row = await _client.rpc('reschedule_appointment', params: {
+        'p_appointment': appointmentId,
+        'p_new_at': newTime.toUtc().toIso8601String(),
+      });
+      return appointmentFromRow(Map<String, dynamic>.from(row as Map));
+    } catch (e) {
+      throw mapPostgrestError(e);
+    }
+  }
 }
