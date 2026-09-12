@@ -27,7 +27,7 @@ void main() {
 
     test('falls back to a generic message and keeps the cause for logging', () {
       final failure = mapPostgrestError(StateError('something odd'));
-      expect(failure.message, 'Something went wrong. Please try again.');
+      expect(failure.message, 'Error: Bad state: something odd');
       expect(failure.cause, isA<StateError>());
     });
   });

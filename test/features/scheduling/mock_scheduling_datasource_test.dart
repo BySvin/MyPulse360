@@ -2,14 +2,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mypulse360/features/auth/domain/entities/user_role.dart';
 import 'package:mypulse360/features/scheduling/data/datasources/mock_scheduling_datasource.dart';
 import 'package:mypulse360/features/scheduling/domain/entities/leave_request.dart';
-import 'package:mypulse360/features/scheduling/domain/entities/shift.dart';
 import 'package:mypulse360/shared/mock/mock_database.dart';
 import 'package:mypulse360/shared/mock/mock_ids.dart';
 
-/// Exercises the real scheduling rules — conflict detection, the
-/// least-hours-first suggestion, leave/unavailability exclusion, and
-/// attendance-based overtime — since these are the actual business logic
-/// behind "Automated Shift Scheduling" and "Overtime Tracking".
+/// Exercises the scheduling rules that remain after shifts were removed —
+/// leave/unavailability exclusion in staff suggestions, attendance-based
+/// overtime, and the full leave lifecycle.
 void main() {
   late MockDatabase db;
   late MockSchedulingDataSource dataSource;
@@ -23,68 +21,7 @@ void main() {
     dataSource = MockSchedulingDataSource(db);
   });
 
-  group('conflict detection', () {
-    test('flags an overlapping shift for the same staff member', () async {
-      await dataSource.createShift(
-        staffId: MockIds.fatimaUserId,
-        clinicId: MockIds.defaultClinicId,
-        start: DateTime(2026, 1, 5, 9),
-        end: DateTime(2026, 1, 5, 17),
-      );
-
-      expect(
-        dataSource.hasConflict(MockIds.fatimaUserId, DateTime(2026, 1, 5, 12), DateTime(2026, 1, 5, 18)),
-        isTrue,
-      );
-      expect(
-        dataSource.hasConflict(MockIds.fatimaUserId, DateTime(2026, 1, 5, 17), DateTime(2026, 1, 5, 20)),
-        isFalse,
-        reason: 'back-to-back, non-overlapping shifts are not a conflict',
-      );
-    });
-
-    test('ignores cancelled shifts', () async {
-      final shift = await dataSource.createShift(
-        staffId: MockIds.fatimaUserId,
-        clinicId: MockIds.defaultClinicId,
-        start: DateTime(2026, 1, 5, 9),
-        end: DateTime(2026, 1, 5, 17),
-      );
-      await dataSource.updateShiftStatus(shift.id, ShiftStatus.cancelled);
-
-      expect(
-        dataSource.hasConflict(MockIds.fatimaUserId, DateTime(2026, 1, 5, 9), DateTime(2026, 1, 5, 17)),
-        isFalse,
-      );
-    });
-  });
-
   group('suggestStaff', () {
-    test('excludes a staff member with a conflicting shift', () async {
-      final candidatesBeforeBooking = dataSource.suggestStaff(
-        role: UserRole.pharmacist,
-        clinicId: MockIds.defaultClinicId,
-        start: DateTime(2026, 1, 6, 9),
-        end: DateTime(2026, 1, 6, 17),
-      );
-      expect(candidatesBeforeBooking.map((u) => u.id), contains(MockIds.fatimaUserId));
-
-      await dataSource.createShift(
-        staffId: MockIds.fatimaUserId,
-        clinicId: MockIds.defaultClinicId,
-        start: DateTime(2026, 1, 6, 9),
-        end: DateTime(2026, 1, 6, 17),
-      );
-
-      final candidatesForOverlappingSlot = dataSource.suggestStaff(
-        role: UserRole.pharmacist,
-        clinicId: MockIds.defaultClinicId,
-        start: DateTime(2026, 1, 6, 10),
-        end: DateTime(2026, 1, 6, 14),
-      );
-      expect(candidatesForOverlappingSlot.map((u) => u.id), isNot(contains(MockIds.fatimaUserId)));
-    });
-
     test('excludes staff on approved leave that day', () async {
       final leave = await dataSource.requestLeave(
         staffId: MockIds.fatimaUserId,
@@ -114,40 +51,17 @@ void main() {
       );
       expect(candidates.map((u) => u.id), isNot(contains(MockIds.fatimaUserId)));
     });
-
-    test('ranks the least-busy candidate first', () async {
-      // Fatima already has more scheduled hours this week (from a fresh
-      // shift below) than a brand-new pharmacist with none yet.
-      await dataSource.createShift(
-        staffId: MockIds.fatimaUserId,
-        clinicId: MockIds.defaultClinicId,
-        start: DateTime(2026, 1, 7, 9),
-        end: DateTime(2026, 1, 7, 17),
-      );
-
-      final candidates = dataSource.suggestStaff(
-        role: UserRole.pharmacist,
-        clinicId: MockIds.defaultClinicId,
-        start: DateTime(2026, 1, 8, 9),
-        end: DateTime(2026, 1, 8, 17),
-      );
-      // Only one pharmacist is seeded, so this asserts the ranking is at
-      // least computed without throwing and returns her as the sole
-      // candidate — the ordering itself is covered by the exclusion tests
-      // above, which confirm busier/conflicting staff drop out of the list.
-      expect(candidates, hasLength(1));
-    });
   });
 
   group('attendance and overtime', () {
     test('clock in then clock out produces a closed record with worked duration', () async {
       final record = await dataSource.clockIn(staffId: MockIds.fatimaUserId);
       expect(record.isOpen, isTrue);
-      expect(dataSource.getOpenAttendance(MockIds.fatimaUserId), isNotNull);
+      expect(await dataSource.getOpenAttendance(MockIds.fatimaUserId), isNotNull);
 
       await dataSource.clockOut(record.id);
-      expect(dataSource.getOpenAttendance(MockIds.fatimaUserId), isNull);
-      final closed = dataSource.getAttendanceForStaff(MockIds.fatimaUserId).first;
+      expect(await dataSource.getOpenAttendance(MockIds.fatimaUserId), isNull);
+      final closed = (await dataSource.getAttendanceForStaff(MockIds.fatimaUserId)).first;
       expect(closed.workedDuration, isNotNull);
     });
 
@@ -155,7 +69,7 @@ void main() {
       final first = await dataSource.clockIn(staffId: MockIds.fatimaUserId);
       final second = await dataSource.clockIn(staffId: MockIds.fatimaUserId);
       expect(second.id, first.id);
-      expect(dataSource.getAttendanceForStaff(MockIds.fatimaUserId), hasLength(1));
+      expect(await dataSource.getAttendanceForStaff(MockIds.fatimaUserId), hasLength(1));
     });
 
     test('weekly overtime is zero when under the threshold', () {
@@ -174,12 +88,11 @@ void main() {
 
       await dataSource.decideLeave(leave.id, status: LeaveStatus.approved, decidedBy: MockIds.drAhmedUserId);
 
-      final updated = dataSource
-          .getLeaveRequestsForStaff(MockIds.fatimaUserId)
+      final updated = (await dataSource.getLeaveRequestsForStaff(MockIds.fatimaUserId))
           .firstWhere((l) => l.id == leave.id);
       expect(updated.status, LeaveStatus.approved);
       expect(updated.decidedBy, MockIds.drAhmedUserId);
-      expect(dataSource.getNotifications(MockIds.fatimaUserId), isNotEmpty);
+      expect(await dataSource.getNotifications(MockIds.fatimaUserId), isNotEmpty);
     });
 
     test('autoApprove files the leave as already approved and self-decided', () async {
@@ -194,7 +107,7 @@ void main() {
       expect(leave.status, LeaveStatus.approved);
       expect(leave.decidedBy, MockIds.drAhmedUserId, reason: 'the doctor is their own approver');
       expect(leave.decidedAt, isNotNull);
-      expect(dataSource.getNotifications(MockIds.drAhmedUserId), isNotEmpty);
+      expect(await dataSource.getNotifications(MockIds.drAhmedUserId), isNotEmpty);
     });
 
     test('cancelLeave removes the record so the days reopen', () async {
@@ -208,7 +121,8 @@ void main() {
 
       await dataSource.cancelLeave(leave.id);
 
-      expect(dataSource.getLeaveRequestsForStaff(MockIds.drAhmedUserId).map((l) => l.id), isNot(contains(leave.id)));
+      final ids = (await dataSource.getLeaveRequestsForStaff(MockIds.drAhmedUserId)).map((l) => l.id);
+      expect(ids, isNot(contains(leave.id)));
     });
   });
 }

@@ -45,8 +45,8 @@ DbFailure mapPostgrestError(Object error) {
       case 'P0002':
         return DbFailure('We could not find that record.', cause: error);
     }
-    return DbFailure('Something went wrong. Please try again.', cause: error);
+    return DbFailure('Something went wrong: $error', cause: error);
   }
 
-  return DbFailure('Something went wrong. Please try again.', cause: error);
+  return DbFailure('Error: $error', cause: error);
 }

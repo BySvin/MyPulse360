@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../../../config/theme/app_theme.dart';
 import '../../../../shared/presentation/widgets/grouped_list.dart';
 import '../../../../shared/presentation/widgets/grouped_list_tile.dart';
+import '../pages/report_issue_page.dart';
 
 class ProfileSettingsSection extends StatelessWidget {
   const ProfileSettingsSection({
@@ -42,6 +43,15 @@ class ProfileSettingsSection extends StatelessWidget {
             onChanged: onNotificationsChanged,
             activeTrackColor: accent,
           ),
+        ),
+        GroupedListTile(
+          title: 'Report an Issue',
+          leadingIcon: Icons.bug_report_outlined,
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ReportIssuePage()),
+            );
+          },
         ),
       ],
     );

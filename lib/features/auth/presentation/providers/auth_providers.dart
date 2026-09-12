@@ -174,6 +174,24 @@ class AuthController extends Notifier<AuthState> {
     }
   }
 
+  /// Replaces the temporary email set during staff provisioning with the
+  /// staff member's permanent email. Used on the forced password change
+  /// screen after the new password has been set.
+  Future<void> updateEmail({required String newEmail}) async {
+    final current = state;
+    if (current is! AuthAuthenticated) return;
+    try {
+      final repository = ref.read(authRepositoryProvider);
+      final updated = await repository.updateEmail(
+        newEmail: newEmail,
+        userId: current.user.id,
+      );
+      state = AuthAuthenticated(updated);
+    } catch (e) {
+      state = AuthError(e.toString());
+    }
+  }
+
   Future<void> logout() async {
     await LogoutUseCase(ref.read(authRepositoryProvider)).call();
     if (Env.isMockMode) {

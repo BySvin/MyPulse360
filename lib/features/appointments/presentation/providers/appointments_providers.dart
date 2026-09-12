@@ -7,6 +7,8 @@ import '../../data/datasources/appointments_datasource.dart';
 import '../../data/datasources/mock_appointments_datasource.dart';
 import '../../data/datasources/supabase_appointments_datasource.dart';
 import '../../data/repositories/appointments_repository_impl.dart';
+import '../../../auth/domain/entities/app_user.dart';
+import '../../../auth/domain/entities/user_role.dart';
 import '../../domain/entities/appointment.dart';
 import '../../domain/entities/time_slot.dart';
 import '../../domain/repositories/appointments_repository.dart';
@@ -70,3 +72,23 @@ final monthAvailabilityProvider =
           .watch(appointmentsRepositoryProvider)
           .getMonthAvailability(doctorId: args.doctorId, month: args.month);
     });
+
+final availableDoctorsProvider = FutureProvider<List<AppUser>>((ref) async {
+  if (Env.isMockMode) {
+    final db = ref.watch(mockDatabaseProvider);
+    return db.users.where((u) => u.role == UserRole.doctor).toList();
+  }
+  final client = ref.watch(supabaseClientProvider);
+  final rows = await client.rpc('doctor_directory');
+  return (rows as List).map((r) {
+    final map = Map<String, dynamic>.from(r as Map);
+    return AppUser(
+      id: map['id'] as String,
+      email: '',
+      fullName: map['full_name'] as String,
+      role: UserRole.doctor,
+      clinicId: map['clinic_id'] as String,
+      avatarUrl: map['avatar_url'] as String?,
+    );
+  }).toList();
+});

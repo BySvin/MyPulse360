@@ -25,7 +25,7 @@ const _medicationNoteHint = 'e.g. Needs Metformin 500mg refill, 2x daily';
 /// health trends. The doctor's role is review-only — diagnosing from
 /// history, not documenting a consultation — so when opened from today's
 /// queue ([appointmentId] set), the only action available is a plain
-/// "Mark as Seen" that hands the visit off to the pharmacist to prescribe.
+/// "Mark as Seen" that hands the visit off to The clinic assistant to prescribe.
 class PatientHistoryPage extends ConsumerStatefulWidget {
   const PatientHistoryPage({
     super.key,
@@ -107,6 +107,16 @@ class _PatientHistoryPageState extends ConsumerState<PatientHistoryPage> {
         }
       }
     }
+    
+    Consultation? currentConsultation;
+    if (pendingAppointment != null) {
+      for (final c in consultations) {
+        if (c.appointmentId == pendingAppointment.id) {
+          currentConsultation = c;
+          break;
+        }
+      }
+    }
 
     return Scaffold(
       appBar: LargeTitleAppBar(title: patient?.fullName ?? 'Patient History'),
@@ -164,24 +174,60 @@ class _PatientHistoryPageState extends ConsumerState<PatientHistoryPage> {
                     ),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Row(
+                  child: Column(
                     children: [
-                      Icon(
-                        Icons.event_note_outlined,
-                        size: 16,
-                        color: colors.clinicianAccent,
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.event_note_outlined,
+                            size: 16,
+                            color: colors.clinicianAccent,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              "Today's visit — ${pendingAppointment.appointmentType}"
+                              '${pendingAppointment.reasonForVisit != null ? " · ${pendingAppointment.reasonForVisit}" : ''}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: colors.textPrimary,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          "Today's visit — ${pendingAppointment.appointmentType}"
-                          '${pendingAppointment.reasonForVisit != null ? " · ${pendingAppointment.reasonForVisit}" : ''}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: colors.textPrimary,
+                      if (currentConsultation?.vitals.temperatureCelsius != null) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: colors.surfaceSubtle,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.thermostat, size: 18, color: colors.danger),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Body Temp: ${currentConsultation!.vitals.temperatureCelsius!.toStringAsFixed(1)} °C',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: colors.textPrimary,
+                                ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                'Logged by Assistant',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: colors.textSecondary,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),
@@ -192,7 +238,7 @@ class _PatientHistoryPageState extends ConsumerState<PatientHistoryPage> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Optional — a quick note on what this patient needs. The pharmacist '
+                  'Optional — a quick note on what this patient needs. The clinic assistant '
                   'still enters the formal e-prescription.',
                   style: TextStyle(fontSize: 11.5, color: colors.textSecondary),
                 ),
@@ -332,6 +378,9 @@ class _ConsultationTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final v = consultation.vitals;
+    final hasVitals = v.systolicBp != null || v.heartRate != null || v.temperatureCelsius != null || v.weightKg != null;
+
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -371,8 +420,51 @@ class _ConsultationTile extends StatelessWidget {
               style: TextStyle(fontSize: 12.5, color: colors.textSecondary),
             ),
           ],
+          if (hasVitals) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: colors.surfaceSubtle,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Wrap(
+                spacing: 12,
+                runSpacing: 8,
+                children: [
+                  if (v.temperatureCelsius != null)
+                    _VitalBadge(icon: Icons.thermostat, label: '${v.temperatureCelsius!.toStringAsFixed(1)} \u00B0C'),
+                  if (v.systolicBp != null && v.diastolicBp != null)
+                    _VitalBadge(icon: Icons.favorite_border, label: '${v.systolicBp}/${v.diastolicBp} mmHg'),
+                  if (v.heartRate != null)
+                    _VitalBadge(icon: Icons.monitor_heart_outlined, label: '${v.heartRate} bpm'),
+                  if (v.weightKg != null)
+                    _VitalBadge(icon: Icons.monitor_weight_outlined, label: '${v.weightKg!.toStringAsFixed(1)} kg'),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
+    );
+  }
+}
+
+class _VitalBadge extends StatelessWidget {
+  const _VitalBadge({required this.icon, required this.label});
+  
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: context.colors.textSecondary),
+        const SizedBox(width: 4),
+        Text(label, style: TextStyle(fontSize: 11, color: context.colors.textSecondary, fontWeight: FontWeight.w500)),
+      ],
     );
   }
 }

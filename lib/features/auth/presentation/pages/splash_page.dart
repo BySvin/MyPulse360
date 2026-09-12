@@ -56,19 +56,34 @@ class _SplashPageState extends ConsumerState<SplashPage> {
     // Await the settled profile rather than sampling whatever the FutureProvider
     // currently holds — a still-loading profile is not "no profile", and
     // treating it as one is what sends an already-onboarded patient back
-    // through onboarding on every launch.
+    // through onboarding on every launch. Sample the AsyncValue state instead
+    // of awaiting `provider.future`, which suspends a pending build in a way
+    // that never resumes under the widget-test fake clock.
     if (user.role.name == 'patient') {
       // A failed profile fetch must not strand the user here. The router
       // exempts /splash from redirect, so nothing else will move them.
+      var settled = false;
+      var failed = false;
       PatientProfile? profile;
-      try {
-        profile = await ref.read(patientProfileProvider(user.id).future);
-      } catch (_) {
-        if (!mounted) return;
+      final settleDeadline = DateTime.now().add(const Duration(seconds: 8));
+      while (mounted && !settled && DateTime.now().isBefore(settleDeadline)) {
+        final profileAsync = ref.read(patientProfileProvider(user.id));
+        if (profileAsync is AsyncError) {
+          failed = true;
+          break;
+        }
+        if (profileAsync is AsyncLoading) {
+          await Future.delayed(const Duration(milliseconds: 50));
+          continue;
+        }
+        profile = profileAsync.valueOrNull;
+        settled = true;
+      }
+      if (!mounted) return;
+      if (failed || !settled) {
         context.go(RoutePaths.login);
         return;
       }
-      if (!mounted) return;
       if (profile == null) {
         context.go(RoutePaths.onboardingWellnessGoals);
         return;

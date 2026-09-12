@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
+import '../../../../config/constants/hive_boxes.dart';
 import '../../../../config/router/role_nav_config.dart';
 import '../../../../config/router/route_paths.dart';
 import '../../../../config/theme/app_theme.dart';
@@ -22,6 +24,22 @@ class LoginPage extends ConsumerStatefulWidget {
 class _LoginPageState extends ConsumerState<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _rememberMe = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // The settings box is opened at app startup in main(); in tests (and on
+    // any storage hiccup where it isn't ready) the remembered email simply
+    // isn't available — never crash the login screen over it.
+    if (!Hive.isBoxOpen(HiveBoxes.settings)) return;
+    final box = Hive.box(HiveBoxes.settings);
+    final savedEmail = box.get(HiveBoxes.keySavedEmail) as String?;
+    if (savedEmail != null && savedEmail.isNotEmpty) {
+      _emailController.text = savedEmail;
+      _rememberMe = true;
+    }
+  }
 
   @override
   void dispose() {
@@ -31,6 +49,15 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 
   Future<void> _submit() async {
+    if (Hive.isBoxOpen(HiveBoxes.settings)) {
+      final box = Hive.box(HiveBoxes.settings);
+      if (_rememberMe) {
+        box.put(HiveBoxes.keySavedEmail, _emailController.text.trim());
+      } else {
+        box.delete(HiveBoxes.keySavedEmail);
+      }
+    }
+
     await ref
         .read(authControllerProvider.notifier)
         .login(
@@ -99,63 +126,132 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
     return Scaffold(
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 40, 24, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [colors.success, colors.info],
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 450),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 40, 24, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [colors.success, colors.info],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: colors.success.withValues(alpha: 0.2),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.monitor_heart_outlined,
+                        color: Colors.white,
+                        size: 32,
+                      ),
+                    ),
                   ),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: const Icon(
-                  Icons.monitor_heart_outlined,
-                  color: Colors.white,
-                ),
+                  const SizedBox(height: 32),
+                  Center(
+                    child: Text(
+                      'Welcome back',
+                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Center(
+                    child: Text(
+                      'Sign in to continue to MyPulse360',
+                      style: TextStyle(color: colors.textSecondary, fontSize: 14),
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+                  AppTextField(
+                    label: 'Email',
+                    controller: _emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    autofillHints: const [AutofillHints.email],
+                  ),
+                  const SizedBox(height: 20),
+                  AppTextField(
+                    label: 'Password',
+                    controller: _passwordController,
+                    obscureText: true,
+                    autofillHints: const [AutofillHints.password],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: _rememberMe,
+                        onChanged: (val) {
+                          setState(() {
+                            _rememberMe = val ?? false;
+                          });
+                        },
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _rememberMe = !_rememberMe;
+                          });
+                        },
+                        child: Text(
+                          'Remember my email',
+                          style: TextStyle(color: colors.textSecondary, fontSize: 14),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: PrimaryButton(
+                      label: 'Sign In',
+                      onPressed: _submit,
+                      loading: loading,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Center(
+                    child: TextButton(
+                      onPressed: () => context.push(RoutePaths.signUp),
+                      child: RichText(
+                        text: TextSpan(
+                          text: "Don't have an account? ",
+                          style: TextStyle(color: colors.textSecondary),
+                          children: [
+                            TextSpan(
+                              text: 'Sign up',
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.primary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 20),
-              Text(
-                'Welcome back',
-                style: Theme.of(context).textTheme.headlineMedium,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Sign in to continue to MyPulse360',
-                style: TextStyle(color: colors.textSecondary, fontSize: 13),
-              ),
-              const SizedBox(height: 28),
-              AppTextField(
-                label: 'Email',
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                autofillHints: const [AutofillHints.email],
-              ),
-              const SizedBox(height: 16),
-              AppTextField(
-                label: 'Password',
-                controller: _passwordController,
-                obscureText: true,
-                autofillHints: const [AutofillHints.password],
-              ),
-              const SizedBox(height: 24),
-              PrimaryButton(
-                label: 'Sign In',
-                onPressed: _submit,
-                loading: loading,
-              ),
-              const SizedBox(height: 12),
-              Center(
-                child: TextButton(
-                  onPressed: () => context.push(RoutePaths.signUp),
-                  child: const Text("Don't have an account? Sign up"),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),

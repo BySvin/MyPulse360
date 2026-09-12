@@ -1,6 +1,6 @@
 # MyPulse360
 
-MyPulse360 is a healthcare management platform built as a **Final Year Project** by a group of students. It brings patients, doctors, and pharmacists onto a single system — appointment booking, e-prescriptions, pharmacy inventory, staff scheduling, and personal health tracking — through one Flutter codebase that adapts to each role.
+MyPulse360 is a healthcare management platform built as a **Final Year Project** by a group of students. It brings patients, doctors, and pharmacists onto a single system — appointment booking that respects doctor leave, e-prescriptions, staff scheduling, and personal health tracking — through one Flutter codebase that adapts to each role.
 
 ## Live Demo
 
@@ -12,15 +12,14 @@ The app is role-aware: patients use it as a mobile app, while doctors and pharma
 
 - **Patients** book appointments, track health metrics, chat with an AI assistant, and manage prescriptions — including digitizing paper prescriptions by scanning a barcode/QR code or taking a photo (with on-device OCR).
 - **Doctors** manage their queue and schedule, review patient history, issue prescriptions, and handle staff/leave management.
-- **Pharmacists** manage medicine inventory (batches, suppliers, wastage, multi-location stock, FEFO dispensing), verify and dispense prescriptions, and manage their own shifts.
+- **Pharmacists** verify and dispense prescriptions and manage their own attendance and leave.
 
 ## Key Features
 
 - Role-based authentication (patient / doctor / pharmacist) with a mobile-vs-web platform split
 - Appointment booking with live queue tracking, and automatic awareness of doctor leave when booking
 - E-prescriptions: doctor-issued, pharmacist-verified, and patient-scanned (barcode/QR or photo + OCR)
-- Pharmacy inventory management: batch tracking, suppliers, wastage logging, multi-location stock, FEFO-based dispensing, and analytics
-- Staff scheduling: shift creation, conflict detection, leave requests, clock in/out, and overtime tracking
+- Staff scheduling: leave requests, clock in/out, unavailability, staff notifications, and overtime tracking
 - Health device integration: simulated Apple Health / Google Fit connection with activity & fitness metrics
 - Personalized health dashboard with wellness insights, BMI snapshot, and health tips
 - AI chat assistant for patient support

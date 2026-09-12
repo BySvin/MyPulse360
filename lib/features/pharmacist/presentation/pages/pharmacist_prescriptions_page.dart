@@ -24,7 +24,7 @@ class PharmacistPrescriptionsPage extends ConsumerWidget {
     final awaiting = ref.watch(awaitingPrescriptionProvider);
 
     return Scaffold(
-      appBar: const LargeTitleAppBar(title: 'New Rx', showBack: false),
+      appBar: const LargeTitleAppBar(title: 'Prescription', showBack: false),
       body: awaiting.isEmpty
           ? const Padding(
               padding: EdgeInsets.only(top: 60),

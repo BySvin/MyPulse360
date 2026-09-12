@@ -7,6 +7,7 @@ ChatConversation seedChat() {
   return ChatConversation(
     id: 'chat-sarah',
     patientId: MockIds.sarahPatientId,
+    updatedAt: now,
     messages: [
       ChatMessage(
         id: 'msg-welcome',

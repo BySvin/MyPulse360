@@ -6,5 +6,14 @@ class SendMessageUseCase {
 
   final ChatbotRepository _repository;
 
-  Future<ChatMessage> call(String patientId, String text) => _repository.sendMessage(patientId, text);
+  Future<ChatMessage> call({
+    required String patientId,
+    required String conversationId,
+    required String text,
+  }) =>
+      _repository.sendMessage(
+        patientId: patientId,
+        conversationId: conversationId,
+        text: text,
+      );
 }

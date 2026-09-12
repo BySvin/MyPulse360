@@ -149,8 +149,12 @@ void main() {
     );
     expect(repository.monthCalls, 1);
 
-    // The forward chevron is the second icon button in the header row.
-    await tester.tap(find.byIcon(Icons.chevron_right_rounded));
+    // The forward chevron is the IconButton at the end of the header row.
+    // (There is also a decorative chevron beside the month name, so match
+    // the button specifically rather than the bare icon.)
+    await tester.tap(
+      find.widgetWithIcon(IconButton, Icons.chevron_right_rounded),
+    );
     await tester.pumpAndSettle();
 
     expect(

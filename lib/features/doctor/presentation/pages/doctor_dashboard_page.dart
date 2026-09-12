@@ -347,7 +347,15 @@ class _DoctorQueueRow extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(name, style: Theme.of(context).textTheme.titleSmall),
+                GestureDetector(
+                  onTap: () => context.push(
+                    RoutePaths.patientHistory(
+                      appointment.patientId,
+                      appointmentId: appointment.id,
+                    ),
+                  ),
+                  child: Text(name, style: Theme.of(context).textTheme.titleSmall),
+                ),
                 const SizedBox(height: 3),
                 Text(
                   [

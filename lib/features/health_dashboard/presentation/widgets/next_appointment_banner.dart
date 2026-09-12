@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../config/theme/app_radii.dart';
 import '../../../../config/theme/app_theme.dart';
 import '../../../../shared/presentation/widgets/status_badge.dart';
 import '../../../../shared/utils/date_formatters.dart';
@@ -25,11 +24,28 @@ class NextAppointmentBanner extends StatelessWidget {
     final colors = context.colors;
     final confirmed = appointment.status == AppointmentStatus.confirmed;
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: colors.patientAccent.withValues(alpha: 0.06),
-        border: Border.all(color: colors.patientAccent),
-        borderRadius: BorderRadius.circular(AppRadii.card),
+        borderRadius: BorderRadius.circular(32),
+        gradient: RadialGradient(
+          center: Alignment.topLeft,
+          radius: 1.8,
+          colors: [
+            colors.patientAccent,
+            colors.patientAccent.withValues(alpha: 0.4),
+            const Color(0xFF101015),
+          ],
+          stops: const [0.0, 0.5, 1.0],
+        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        boxShadow: [
+          BoxShadow(
+            color: colors.patientAccent.withValues(alpha: 0.25),
+            blurRadius: 30,
+            spreadRadius: -10,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -43,7 +59,7 @@ class NextAppointmentBanner extends StatelessWidget {
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 0.4,
-                  color: colors.patientAccentText,
+                  color: Colors.white.withValues(alpha: 0.8),
                 ),
               ),
               StatusBadge(
@@ -53,43 +69,47 @@ class NextAppointmentBanner extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 6),
-          Text(doctorName, style: Theme.of(context).textTheme.titleLarge),
+          Text(doctorName, style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white)),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Icon(Icons.calendar_today, size: 14, color: Colors.white.withValues(alpha: 0.7)),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  '${DateFormatters.full(appointment.scheduledAt)} at ${DateFormatters.time(appointment.scheduledAt)}',
+                  style: const TextStyle(fontSize: 13, color: Colors.white),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 6),
           Row(
             children: [
-              Icon(Icons.calendar_today, size: 14, color: colors.textSecondary),
+              Icon(Icons.medical_services_outlined, size: 14, color: Colors.white.withValues(alpha: 0.7)),
               const SizedBox(width: 7),
-              Text(
-                '${DateFormatters.full(appointment.scheduledAt)} at ${DateFormatters.time(appointment.scheduledAt)}',
-                style: TextStyle(fontSize: 13, color: colors.textPrimary),
+              Expanded(
+                child: Text(
+                  '${appointment.appointmentType} · ${appointment.durationMinutes} minutes',
+                  style: const TextStyle(fontSize: 13, color: Colors.white),
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 3),
-          Row(
-            children: [
-              Icon(Icons.medical_services_outlined, size: 14, color: colors.textSecondary),
-              const SizedBox(width: 7),
-              Text(
-                '${appointment.appointmentType} · ${appointment.durationMinutes} minutes',
-                style: TextStyle(fontSize: 13, color: colors.textPrimary),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 16),
           Row(
             children: [
               GestureDetector(
                 onTap: onViewDetails,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
-                    color: colors.patientAccent,
-                    borderRadius: BorderRadius.circular(8),
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Text(
+                  child: Text(
                     'View Details',
-                    style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                    style: TextStyle(color: colors.patientAccent, fontSize: 13, fontWeight: FontWeight.w700),
                   ),
                 ),
               ),
@@ -100,7 +120,7 @@ class NextAppointmentBanner extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   child: Text(
                     'Reschedule',
-                    style: TextStyle(color: colors.textSecondary, fontSize: 13, fontWeight: FontWeight.w600),
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 13, fontWeight: FontWeight.w600),
                   ),
                 ),
               ),

@@ -197,6 +197,33 @@ class SupabaseAuthDataSource implements AuthDataSource {
   }
 
   @override
+  Future<AppUser> updateEmail({required String newEmail, String? userId}) async {
+    try {
+      final response = await _client.functions.invoke(
+        'update-staff-email',
+        body: {'email': newEmail.trim()},
+      );
+
+      final data = response.data;
+      if (data is! Map || data['profile'] == null) {
+        throw const DbFailure('Could not update email.');
+      }
+      return _toUser(Map<String, dynamic>.from(data['profile'] as Map));
+    } on FunctionsHttpException catch (e) {
+      final details = e.details;
+      throw DbFailure(
+        details is Map && details['error'] is String
+            ? details['error'] as String
+            : 'Could not update email.',
+      );
+    } on DbFailure {
+      rethrow;
+    } catch (e) {
+      throw mapPostgrestError(e);
+    }
+  }
+
+  @override
   Future<List<AppUser>> getStaffAccounts() async {
     try {
       final rows = await _client

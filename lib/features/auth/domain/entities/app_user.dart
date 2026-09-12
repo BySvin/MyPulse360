@@ -31,9 +31,9 @@ class AppUser extends Equatable {
   /// password" step before the account can reach any dashboard.
   final bool mustChangePassword;
 
-  AppUser copyWith({bool? isActive, bool? mustChangePassword}) => AppUser(
+  AppUser copyWith({String? email, bool? isActive, bool? mustChangePassword}) => AppUser(
         id: id,
-        email: email,
+        email: email ?? this.email,
         fullName: fullName,
         role: role,
         clinicId: clinicId,

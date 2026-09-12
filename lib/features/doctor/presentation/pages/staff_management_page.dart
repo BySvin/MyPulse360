@@ -40,7 +40,7 @@ class StaffManagementPage extends ConsumerWidget {
                             Text('Staff', style: Theme.of(context).textTheme.headlineSmall),
                             const SizedBox(height: 2),
                             Text(
-                              'Doctor and pharmacist accounts for this clinic.',
+                              'Doctor and clinic assistant accounts for this clinic.',
                               style: TextStyle(fontSize: 12.5, color: colors.textSecondary),
                             ),
                           ],

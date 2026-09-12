@@ -6,6 +6,8 @@ abstract class PatientRepository {
 
   Future<List<WellnessGoal>> getWellnessGoals(String patientId);
 
+  Future<void> deleteGoal(String patientId, String goalId);
+
   /// Creates a bare profile immediately after signup — before any of the
   /// onboarding steps run — so Emergency Contact / Healthcare Preferences
   /// have somewhere to save data. Presence of a profile is what the router

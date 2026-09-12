@@ -5,12 +5,12 @@ import 'package:flutter/material.dart';
 /// it. Two levels only: resting and lifted.
 abstract final class AppShadows {
   static const List<BoxShadow> card = [
-    BoxShadow(color: Color(0x141B2A38), blurRadius: 16, offset: Offset(0, 6)),
-    BoxShadow(color: Color(0x0D1B2A38), blurRadius: 2, offset: Offset(0, 1)),
+    BoxShadow(color: Color(0x0A1B2A38), blurRadius: 24, offset: Offset(0, 8)),
+    BoxShadow(color: Color(0x051B2A38), blurRadius: 4, offset: Offset(0, 2)),
   ];
 
   static const List<BoxShadow> elevated = [
-    BoxShadow(color: Color(0x241B2A38), blurRadius: 32, offset: Offset(0, 14)),
+    BoxShadow(color: Color(0x141B2A38), blurRadius: 40, offset: Offset(0, 20)),
   ];
 
   static const List<BoxShadow> none = [];

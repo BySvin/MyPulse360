@@ -2,7 +2,6 @@ import '../../../auth/domain/entities/app_user.dart';
 import '../../../auth/domain/entities/user_role.dart';
 import '../../domain/entities/attendance_record.dart';
 import '../../domain/entities/leave_request.dart';
-import '../../domain/entities/shift.dart';
 import '../../domain/entities/staff_notification.dart';
 import '../../domain/entities/staff_unavailability.dart';
 import '../../domain/repositories/scheduling_repository.dart';
@@ -14,37 +13,8 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
   final SchedulingDataSource _dataSource;
 
   @override
-  List<Shift> getShiftsForClinic(String clinicId) => _dataSource.getShiftsForClinic(clinicId);
-
-  @override
-  List<Shift> getShiftsForStaff(String staffId) => _dataSource.getShiftsForStaff(staffId);
-
-  @override
-  Future<Shift> createShift({
-    required String staffId,
-    required String clinicId,
-    required DateTime start,
-    required DateTime end,
-    String? notes,
-  }) =>
-      _dataSource.createShift(
-        staffId: staffId,
-        clinicId: clinicId,
-        start: start,
-        end: end,
-        notes: notes,
-      );
-
-  @override
-  Future<void> updateShiftStatus(String shiftId, ShiftStatus status) =>
-      _dataSource.updateShiftStatus(shiftId, status);
-
-  @override
-  Future<void> deleteShift(String shiftId) => _dataSource.deleteShift(shiftId);
-
-  @override
-  bool hasConflict(String staffId, DateTime start, DateTime end, {String? excludeShiftId}) =>
-      _dataSource.hasConflict(staffId, start, end, excludeShiftId: excludeShiftId);
+  bool hasConflict(String staffId, DateTime start, DateTime end) =>
+      _dataSource.hasConflict(staffId, start, end);
 
   @override
   double weeklyScheduledHours(String staffId, DateTime anyDayInWeek) =>
@@ -60,10 +30,10 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
       _dataSource.suggestStaff(role: role, clinicId: clinicId, start: start, end: end);
 
   @override
-  List<LeaveRequest> getLeaveRequests(String clinicId) => _dataSource.getLeaveRequests(clinicId);
+  Future<List<LeaveRequest>> getLeaveRequests(String clinicId) => _dataSource.getLeaveRequests(clinicId);
 
   @override
-  List<LeaveRequest> getLeaveRequestsForStaff(String staffId) =>
+  Future<List<LeaveRequest>> getLeaveRequestsForStaff(String staffId) =>
       _dataSource.getLeaveRequestsForStaff(staffId);
 
   @override
@@ -90,7 +60,7 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
   Future<void> cancelLeave(String leaveId) => _dataSource.cancelLeave(leaveId);
 
   @override
-  List<StaffUnavailability> getUnavailability(String staffId) => _dataSource.getUnavailability(staffId);
+  Future<List<StaffUnavailability>> getUnavailability(String staffId) => _dataSource.getUnavailability(staffId);
 
   @override
   Future<void> markUnavailable({required String staffId, required DateTime date, String? reason}) =>
@@ -100,14 +70,14 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
   Future<void> clearUnavailability(String id) => _dataSource.clearUnavailability(id);
 
   @override
-  AttendanceRecord? getOpenAttendance(String staffId) => _dataSource.getOpenAttendance(staffId);
+  Future<AttendanceRecord?> getOpenAttendance(String staffId) => _dataSource.getOpenAttendance(staffId);
 
   @override
-  List<AttendanceRecord> getAttendanceForStaff(String staffId) => _dataSource.getAttendanceForStaff(staffId);
+  Future<List<AttendanceRecord>> getAttendanceForStaff(String staffId) => _dataSource.getAttendanceForStaff(staffId);
 
   @override
-  Future<AttendanceRecord> clockIn({required String staffId, String? shiftId}) =>
-      _dataSource.clockIn(staffId: staffId, shiftId: shiftId);
+  Future<AttendanceRecord> clockIn({required String staffId}) =>
+      _dataSource.clockIn(staffId: staffId);
 
   @override
   Future<void> clockOut(String attendanceId) => _dataSource.clockOut(attendanceId);
@@ -117,5 +87,5 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
       _dataSource.weeklyOvertimeHours(staffId, anyDayInWeek, weeklyThreshold: weeklyThreshold);
 
   @override
-  List<StaffNotification> getNotifications(String staffId) => _dataSource.getNotifications(staffId);
+  Future<List<StaffNotification>> getNotifications(String staffId) => _dataSource.getNotifications(staffId);
 }

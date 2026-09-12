@@ -13,6 +13,7 @@ import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../domain/entities/appointment.dart';
 import '../providers/appointments_providers.dart';
 import '../widgets/appointment_card.dart';
+import '../widgets/queue_status_view.dart';
 import 'book_appointment_page.dart';
 
 /// Appointments tab root — book / view / reschedule all live here. Live
@@ -26,7 +27,7 @@ class AppointmentsListPage extends ConsumerStatefulWidget {
 }
 
 class _AppointmentsListPageState extends ConsumerState<AppointmentsListPage> {
-  String _filter = 'Upcoming';
+  String _filter = 'Queue';
 
   @override
   Widget build(BuildContext context) {
@@ -86,6 +87,21 @@ class _AppointmentsListPageState extends ConsumerState<AppointmentsListPage> {
                             backgroundColor: colors.surfaceMuted,
                             thumbColor: colors.patientAccent,
                             children: {
+                              'Queue': Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 6,
+                                ),
+                                child: Text(
+                                  'Queue',
+                                  style: TextStyle(
+                                    color: _filter == 'Queue'
+                                        ? Colors.white
+                                        : colors.textPrimary,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
                               'Upcoming': Padding(
                                 padding: const EdgeInsets.symmetric(
                                   vertical: 6,
@@ -124,7 +140,9 @@ class _AppointmentsListPageState extends ConsumerState<AppointmentsListPage> {
                             },
                           ),
                           const SizedBox(height: 16),
-                          if (shown.isEmpty)
+                          if (_filter == 'Queue')
+                            const QueueStatusView()
+                          else if (shown.isEmpty)
                             Padding(
                               padding: const EdgeInsets.only(top: 40),
                               child: Center(

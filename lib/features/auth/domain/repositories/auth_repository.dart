@@ -36,6 +36,10 @@ abstract class AuthRepository {
 
   Future<void> changePassword({required String userId, required String newPassword});
 
+  /// Replaces the temporary email set during staff provisioning with the
+  /// staff member's permanent email.
+  Future<AppUser> updateEmail({required String newEmail, String? userId});
+
   /// Doctor/pharmacist accounts only — backs the staff management screen.
   Future<List<AppUser>> getStaffAccounts();
 

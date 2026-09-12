@@ -12,7 +12,6 @@ abstract final class RoutePaths {
   // Patient branch roots
   static const String patientDashboard = '/patient/dashboard';
   static const String patientAppointments = '/patient/appointments';
-  static const String patientQueue = '/patient/queue';
   static const String patientAssistant = '/patient/assistant';
   static const String patientPrescriptions = '/patient/prescriptions';
   static const String patientProfile = '/patient/profile';
@@ -45,4 +44,6 @@ abstract final class RoutePaths {
   static String createPrescription(String consultationId) => '/pharmacist/create-prescription/$consultationId';
 
   const RoutePaths._();
+
+  static String? get home => null;
 }

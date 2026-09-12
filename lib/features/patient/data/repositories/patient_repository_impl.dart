@@ -17,6 +17,10 @@ class PatientRepositoryImpl implements PatientRepository {
       _dataSource.getWellnessGoals(patientId);
 
   @override
+  Future<void> deleteGoal(String patientId, String goalId) =>
+      _dataSource.deleteGoal(patientId, goalId);
+
+  @override
   Future<PatientProfile> createInitialProfile({
     required String patientId,
     required String assignedDoctorId,

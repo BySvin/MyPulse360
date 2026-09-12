@@ -11,16 +11,15 @@ class TimeSlotGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GridView.count(
-      crossAxisCount: 3,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 10,
-      crossAxisSpacing: 10,
-      childAspectRatio: 2.2,
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
       children: [
         for (final slot in slots)
-          TimeSlotChip(slot: slot, onTap: () => onSelect(slot)),
+          SizedBox(
+            width: (MediaQuery.of(context).size.width - 48 - 36) / 4, // Roughly 4 per row
+            child: TimeSlotChip(slot: slot, onTap: () => onSelect(slot)),
+          ),
       ],
     );
   }

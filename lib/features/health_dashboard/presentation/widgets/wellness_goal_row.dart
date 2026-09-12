@@ -51,7 +51,8 @@ class WellnessGoalRow extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(goal.name, style: Theme.of(context).textTheme.titleSmall),
+                    Expanded(child: Text(goal.name, style: Theme.of(context).textTheme.titleSmall, maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    const SizedBox(width: 8),
                     Text(_statusLabel, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: statusColor)),
                   ],
                 ),

@@ -2,28 +2,11 @@ import '../../../auth/domain/entities/app_user.dart';
 import '../../../auth/domain/entities/user_role.dart';
 import '../../domain/entities/attendance_record.dart';
 import '../../domain/entities/leave_request.dart';
-import '../../domain/entities/shift.dart';
 import '../../domain/entities/staff_notification.dart';
 import '../../domain/entities/staff_unavailability.dart';
 
 abstract class SchedulingDataSource {
-  List<Shift> getShiftsForClinic(String clinicId);
-
-  List<Shift> getShiftsForStaff(String staffId);
-
-  Future<Shift> createShift({
-    required String staffId,
-    required String clinicId,
-    required DateTime start,
-    required DateTime end,
-    String? notes,
-  });
-
-  Future<void> updateShiftStatus(String shiftId, ShiftStatus status);
-
-  Future<void> deleteShift(String shiftId);
-
-  bool hasConflict(String staffId, DateTime start, DateTime end, {String? excludeShiftId});
+  bool hasConflict(String staffId, DateTime start, DateTime end);
 
   double weeklyScheduledHours(String staffId, DateTime anyDayInWeek);
 
@@ -34,9 +17,9 @@ abstract class SchedulingDataSource {
     required DateTime end,
   });
 
-  List<LeaveRequest> getLeaveRequests(String clinicId);
+  Future<List<LeaveRequest>> getLeaveRequests(String clinicId);
 
-  List<LeaveRequest> getLeaveRequestsForStaff(String staffId);
+  Future<List<LeaveRequest>> getLeaveRequestsForStaff(String staffId);
 
   /// [autoApprove] files the request as already approved and self-decided —
   /// the doctor's Apply Leave flow, where the doctor is the clinic admin and
@@ -55,21 +38,21 @@ abstract class SchedulingDataSource {
   /// for patient booking.
   Future<void> cancelLeave(String leaveId);
 
-  List<StaffUnavailability> getUnavailability(String staffId);
+  Future<List<StaffUnavailability>> getUnavailability(String staffId);
 
   Future<void> markUnavailable({required String staffId, required DateTime date, String? reason});
 
   Future<void> clearUnavailability(String id);
 
-  AttendanceRecord? getOpenAttendance(String staffId);
+  Future<AttendanceRecord?> getOpenAttendance(String staffId);
 
-  List<AttendanceRecord> getAttendanceForStaff(String staffId);
+  Future<List<AttendanceRecord>> getAttendanceForStaff(String staffId);
 
-  Future<AttendanceRecord> clockIn({required String staffId, String? shiftId});
+  Future<AttendanceRecord> clockIn({required String staffId});
 
   Future<void> clockOut(String attendanceId);
 
   double weeklyOvertimeHours(String staffId, DateTime anyDayInWeek, {double weeklyThreshold = 40});
 
-  List<StaffNotification> getNotifications(String staffId);
+  Future<List<StaffNotification>> getNotifications(String staffId);
 }

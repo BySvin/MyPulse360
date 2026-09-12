@@ -21,19 +21,14 @@ const Map<UserRole, RoleNavConfig> kRoleNavConfig = {
       NavItem(
         icon: Icons.calendar_month_outlined,
         selectedIcon: Icons.calendar_month_rounded,
-        label: 'Appts',
-      ),
-      NavItem(
-        icon: Icons.confirmation_number_outlined,
-        selectedIcon: Icons.confirmation_number_rounded,
-        label: 'Queue',
+        label: 'Appointment',
       ),
       NavItem(
         icon: Icons.chat_bubble_outline_rounded,
         selectedIcon: Icons.chat_bubble_rounded,
-        label: 'AI Chat',
+        label: 'AI Assistant',
       ),
-      NavItem(icon: Icons.medication_outlined, selectedIcon: Icons.medication_rounded, label: 'Rx'),
+      NavItem(icon: Icons.medication_outlined, selectedIcon: Icons.medication_rounded, label: 'Prescriptions'),
       NavItem(icon: Icons.person_outline_rounded, selectedIcon: Icons.person_rounded, label: 'Profile'),
     ],
   ),
@@ -49,7 +44,7 @@ const Map<UserRole, RoleNavConfig> kRoleNavConfig = {
       NavItem(
         icon: Icons.beach_access_outlined,
         selectedIcon: Icons.beach_access_rounded,
-        label: 'Apply Leave',
+        label: 'Take Leave',
       ),
     ],
   ),
@@ -60,7 +55,7 @@ const Map<UserRole, RoleNavConfig> kRoleNavConfig = {
       NavItem(
         icon: Icons.receipt_long_outlined,
         selectedIcon: Icons.receipt_long_rounded,
-        label: 'New Rx',
+        label: 'Prescription',
       ),
     ],
   ),

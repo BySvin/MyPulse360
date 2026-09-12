@@ -1,3 +1,4 @@
+import '../../../appointments/domain/entities/appointment.dart';
 import '../../../doctor/domain/entities/consultation.dart';
 import '../../../prescriptions/domain/entities/prescription.dart';
 import '../../domain/entities/pharmacist_profile.dart';
@@ -17,4 +18,12 @@ class PharmacistRepositoryImpl implements PharmacistRepository {
 
   @override
   List<Consultation> getAwaitingPrescription() => _dataSource.getAwaitingPrescription();
+
+  @override
+  List<Appointment> getTodaysAppointments() => _dataSource.getTodaysAppointments();
+
+  @override
+  Future<void> logTemperature(String appointmentId, String patientId, String doctorId, double temperature) {
+    return _dataSource.logTemperature(appointmentId, patientId, doctorId, temperature);
+  }
 }

@@ -161,7 +161,7 @@ class _ApplyLeaveSheetState extends ConsumerState<_ApplyLeaveSheet> {
                 ),
               ),
               Text(
-                'Apply for Leave',
+                'Take Leave',
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 4),
@@ -274,7 +274,7 @@ class _ApplyLeaveSheetState extends ConsumerState<_ApplyLeaveSheet> {
               ],
               const SizedBox(height: 20),
               PrimaryButton(
-                label: 'Apply for Leave',
+                label: 'Take Leave',
                 onPressed: _save,
                 loading: _saving,
               ),

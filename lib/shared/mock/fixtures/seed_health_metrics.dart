@@ -14,6 +14,7 @@ List<HealthMetric> seedHealthMetrics() {
   final diastolic = <double>[84, 82, 80, 83, 79, 78, 80];
   final sugar = <double>[118, 112, 109, 115, 107, 104, 105];
   final heartRate = <double>[76, 74, 78, 73, 71, 74, 72];
+  final temperature = <double>[36.6, 36.7, 36.8, 36.7, 36.9, 36.8, 36.6];
 
   final metrics = <HealthMetric>[];
   for (var i = 0; i < 7; i++) {
@@ -49,6 +50,14 @@ List<HealthMetric> seedHealthMetrics() {
         patientId: MockIds.sarahPatientId,
         type: MetricType.heartRate,
         value: heartRate[i],
+        measuredAt: day,
+        recordedBy: MockIds.sarahPatientId,
+      ),
+      HealthMetric(
+        id: generateId(),
+        patientId: MockIds.sarahPatientId,
+        type: MetricType.temperature,
+        value: temperature[i],
         measuredAt: day,
         recordedBy: MockIds.sarahPatientId,
       ),

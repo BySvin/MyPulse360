@@ -3,6 +3,7 @@ import 'package:equatable/equatable.dart';
 class PatientProfile extends Equatable {
   const PatientProfile({
     required this.id,
+    this.icNumber,
     required this.heightCm,
     required this.weightKg,
     required this.allergies,
@@ -23,6 +24,7 @@ class PatientProfile extends Equatable {
   });
 
   final String id;
+  final String? icNumber;
 
   /// Optional demographic fields — genuinely absent (not a placeholder)
   /// when the patient skipped them during health profile setup.
@@ -61,6 +63,7 @@ class PatientProfile extends Equatable {
       dateOfBirth == null ? null : (DateTime.now().difference(dateOfBirth!).inDays ~/ 365);
 
   PatientProfile copyWith({
+    String? icNumber,
     double? heightCm,
     double? weightKg,
     List<String>? allergies,
@@ -79,6 +82,7 @@ class PatientProfile extends Equatable {
   }) {
     return PatientProfile(
       id: id,
+      icNumber: icNumber ?? this.icNumber,
       dateOfBirth: dateOfBirth ?? this.dateOfBirth,
       gender: gender ?? this.gender,
       bloodType: bloodType ?? this.bloodType,
@@ -102,6 +106,7 @@ class PatientProfile extends Equatable {
   @override
   List<Object?> get props => [
         id,
+        icNumber,
         dateOfBirth,
         gender,
         bloodType,

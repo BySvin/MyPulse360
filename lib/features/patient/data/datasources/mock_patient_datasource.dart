@@ -23,6 +23,14 @@ class MockPatientDataSource implements PatientDataSource {
       _db.wellnessGoals.where((g) => g.patientId == patientId).toList();
 
   @override
+  Future<void> deleteGoal(String patientId, String goalId) async {
+    await simulateLatency();
+    _db.wellnessGoals.removeWhere(
+      (g) => g.id == goalId && g.patientId == patientId,
+    );
+  }
+
+  @override
   Future<PatientProfile> createInitialProfile({
     required String patientId,
     required String assignedDoctorId,

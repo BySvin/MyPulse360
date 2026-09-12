@@ -1,0 +1,101 @@
+/* Reset and base styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: #111111; /* Very dark near-black */
+    color: #ffffff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+}
+
+/* Container and layout */
+.container {
+    width: 100%;
+    max-width: 400px;
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    /* Entrance animation */
+    animation: fadeSlideUp 0.8s ease-out forwards;
+    opacity: 0;
+    transform: translateY(20px);
+}
+
+@keyframes fadeSlideUp {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Logo placeholder */
+.logo-placeholder {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 3rem;
+}
+
+.logo-circle {
+    width: 80px;
+    height: 80px;
+    background: linear-gradient(135deg, #444, #888);
+    border-radius: 50%;
+}
+
+/* Form elements */
+.auth-form {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.auth-form input {
+    width: 100%;
+    padding: 1rem 1.5rem;
+    border-radius: 50px; /* Pill-shaped */
+    background-color: #222222; /* Dark gray */
+    color: #ffffff;
+    border: 2px solid transparent;
+    font-size: 1rem;
+    outline: none;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.auth-form input::placeholder {
+    color: #888888;
+}
+
+.auth-form input:focus {
+    border-color: #555555; /* Lighter gray border */
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.15); /* Soft white glow */
+}
+
+.auth-form button {
+    width: 100%;
+    padding: 1rem 1.5rem;
+    border-radius: 50px; /* Pill-shaped */
+    background-color: #ffffff; /* Solid white background */
+    color: #111111; /* Dark text */
+    border: none;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out, opacity 0.3s ease-in-out;
+    margin-top: 1rem;
+}
+
+.auth-form button:hover {
+    transform: scale(1.02); /* Slight scale up */
+    box-shadow: 0 4px 15px rgba(255, 255, 255, 0.3); /* Increased shadow */
+    opacity: 0.95;
+}

@@ -25,7 +25,7 @@ class HealthMetric extends Equatable {
 
   String get displayValue => switch (type) {
         MetricType.bloodPressure => '${value.toInt()}/${secondaryValue?.toInt() ?? 0}',
-        MetricType.weight || MetricType.sleepHours => value.toStringAsFixed(1),
+        MetricType.weight || MetricType.sleepHours || MetricType.temperature => value.toStringAsFixed(1),
         _ => value.toInt().toString(),
       };
 

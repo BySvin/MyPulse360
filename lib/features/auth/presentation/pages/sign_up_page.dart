@@ -150,7 +150,7 @@ class _WebSignUpBlocked extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               'Create your MyPulse360 account from the mobile app. This web dashboard is for clinic staff — '
-              'doctor and pharmacist accounts are set up by your clinic administrator.',
+              'doctor and clinic assistant accounts are set up by your clinic administrator.',
               style: TextStyle(color: colors.textSecondary, fontSize: 13, height: 1.5),
             ),
             const SizedBox(height: 20),

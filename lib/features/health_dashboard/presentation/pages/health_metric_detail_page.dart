@@ -137,7 +137,9 @@ class HealthMetricDetailPage extends ConsumerWidget {
     final min = values.reduce((a, b) => a < b ? a : b);
     final max = values.reduce((a, b) => a > b ? a : b);
     String fmt(double v) =>
-        (type == MetricType.weight || type == MetricType.sleepHours) ? v.toStringAsFixed(1) : v.toInt().toString();
+        (type == MetricType.weight || type == MetricType.sleepHours || type == MetricType.temperature) 
+            ? v.toStringAsFixed(1) 
+            : v.toInt().toString();
     return [
       MetricStat('Average', fmt(avg)),
       MetricStat('Lowest', fmt(min)),
@@ -155,6 +157,7 @@ class HealthMetricDetailPage extends ConsumerWidget {
       MetricType.bloodPressure => 'Readings have stayed within a normal range this period.',
       MetricType.bloodSugar => 'Your fasting readings are trending ${delta <= 0 ? 'down' : 'up'}, mostly within target.',
       MetricType.heartRate => 'Resting heart rate looks steady and within a healthy range.',
+      MetricType.temperature => 'Your temperature readings appear to be in a normal range.',
       MetricType.steps => delta >= 0
           ? 'Daily steps are trending up ${delta.toStringAsFixed(0)} over this period.'
           : 'Daily steps have dropped off — try to build activity back up.',

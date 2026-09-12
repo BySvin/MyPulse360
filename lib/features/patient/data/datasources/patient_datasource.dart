@@ -6,6 +6,8 @@ abstract class PatientDataSource {
 
   Future<List<WellnessGoal>> getWellnessGoals(String patientId);
 
+  Future<void> deleteGoal(String patientId, String goalId);
+
   Future<PatientProfile> createInitialProfile({
     required String patientId,
     required String assignedDoctorId,

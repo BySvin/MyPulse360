@@ -7,9 +7,9 @@ import '../../../../config/theme/app_theme.dart';
 /// (blood type, gender, existing conditions) collected during Health
 /// Profile Setup and re-editable later from Profile — kept in one place so
 /// both screens render and resolve them identically.
-const kBloodTypes = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'Unknown'];
+const kBloodTypes = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
-const kGenders = ['Male', 'Female', 'Other', 'Prefer not to say'];
+const kGenders = ['Male', 'Female'];
 
 const kConditionOptions = ['Diabetes', 'High Blood Pressure', 'Asthma', 'Heart Condition', 'None', 'Other'];
 

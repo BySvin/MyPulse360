@@ -1,72 +1,41 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../config/env/env.dart';
+import '../../../../shared/data/supabase_providers.dart';
 import '../../../../shared/mock/mock_database.dart';
 import '../../../appointments/domain/entities/appointment.dart';
 import '../../../appointments/presentation/providers/appointments_providers.dart';
 import '../../../auth/domain/entities/app_user.dart';
 import '../../../auth/domain/entities/user_role.dart';
 import '../../data/datasources/mock_scheduling_datasource.dart';
+import '../../data/datasources/scheduling_datasource.dart';
+import '../../data/datasources/supabase_scheduling_datasource.dart';
 import '../../data/repositories/scheduling_repository_impl.dart';
 import '../../domain/entities/attendance_record.dart';
 import '../../domain/entities/leave_request.dart';
-import '../../domain/entities/shift.dart';
 import '../../domain/entities/staff_notification.dart';
 import '../../domain/repositories/scheduling_repository.dart';
 import '../../domain/usecases/apply_leave_usecase.dart';
 
 final schedulingRepositoryProvider = Provider<SchedulingRepository>((ref) {
-  return SchedulingRepositoryImpl(
-    MockSchedulingDataSource(ref.watch(mockDatabaseProvider)),
-  );
+  final SchedulingDataSource dataSource = Env.isMockMode
+      ? MockSchedulingDataSource(ref.watch(mockDatabaseProvider))
+      : SupabaseSchedulingDataSource(ref.watch(supabaseClientProvider));
+  return SchedulingRepositoryImpl(dataSource);
 });
 
 /// Bumped after any mutating call so dependent providers re-read the mock
 /// store — same pattern as every other feature's revision provider.
 final schedulingRevisionProvider = StateProvider<int>((ref) => 0);
 
-final clinicShiftsProvider = Provider.family<List<Shift>, String>((
-  ref,
-  clinicId,
-) {
+final clinicLeaveRequestsProvider =
+    FutureProvider.family<List<LeaveRequest>, String>((ref, clinicId) async {
   ref.watch(schedulingRevisionProvider);
-  return ref.watch(schedulingRepositoryProvider).getShiftsForClinic(clinicId);
+  return ref.watch(schedulingRepositoryProvider).getLeaveRequests(clinicId);
 });
 
-final staffShiftsProvider = Provider.family<List<Shift>, String>((
-  ref,
-  staffId,
-) {
-  ref.watch(schedulingRevisionProvider);
-  return ref.watch(schedulingRepositoryProvider).getShiftsForStaff(staffId);
-});
-
-final weeklyScheduledHoursProvider =
-    Provider.family<double, ({String staffId, DateTime week})>((ref, args) {
-      ref.watch(schedulingRevisionProvider);
-      return ref
-          .watch(schedulingRepositoryProvider)
-          .weeklyScheduledHours(args.staffId, args.week);
-    });
-
-final weeklyOvertimeHoursProvider =
-    Provider.family<double, ({String staffId, DateTime week})>((ref, args) {
-      ref.watch(schedulingRevisionProvider);
-      return ref
-          .watch(schedulingRepositoryProvider)
-          .weeklyOvertimeHours(args.staffId, args.week);
-    });
-
-final clinicLeaveRequestsProvider = Provider.family<List<LeaveRequest>, String>(
-  (ref, clinicId) {
-    ref.watch(schedulingRevisionProvider);
-    return ref.watch(schedulingRepositoryProvider).getLeaveRequests(clinicId);
-  },
-);
-
-final staffLeaveRequestsProvider = Provider.family<List<LeaveRequest>, String>((
-  ref,
-  staffId,
-) {
+final staffLeaveRequestsProvider =
+    FutureProvider.family<List<LeaveRequest>, String>((ref, staffId) async {
   ref.watch(schedulingRevisionProvider);
   return ref
       .watch(schedulingRepositoryProvider)
@@ -98,28 +67,31 @@ final appointmentsInLeaveRangeProvider =
           );
     });
 
-final openAttendanceProvider = Provider.family<AttendanceRecord?, String>((
-  ref,
-  staffId,
-) {
+final openAttendanceProvider =
+    FutureProvider.family<AttendanceRecord?, String>((ref, staffId) async {
   ref.watch(schedulingRevisionProvider);
   return ref.watch(schedulingRepositoryProvider).getOpenAttendance(staffId);
 });
 
-final staffAttendanceProvider = Provider.family<List<AttendanceRecord>, String>(
-  (ref, staffId) {
-    ref.watch(schedulingRevisionProvider);
-    return ref
-        .watch(schedulingRepositoryProvider)
-        .getAttendanceForStaff(staffId);
-  },
-);
+final staffAttendanceProvider =
+    FutureProvider.family<List<AttendanceRecord>, String>(
+      (ref, staffId) async {
+        ref.watch(schedulingRevisionProvider);
+        return ref
+            .watch(schedulingRepositoryProvider)
+            .getAttendanceForStaff(staffId);
+      },
+    );
 
 final staffNotificationsProvider =
-    Provider.family<List<StaffNotification>, String>((ref, staffId) {
-      ref.watch(schedulingRevisionProvider);
-      return ref.watch(schedulingRepositoryProvider).getNotifications(staffId);
-    });
+    FutureProvider.family<List<StaffNotification>, String>(
+      (ref, staffId) async {
+        ref.watch(schedulingRevisionProvider);
+        return ref
+            .watch(schedulingRepositoryProvider)
+            .getNotifications(staffId);
+      },
+    );
 
 final suggestStaffProvider =
     Provider.family<

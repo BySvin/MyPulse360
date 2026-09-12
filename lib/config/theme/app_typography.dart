@@ -13,39 +13,86 @@ abstract final class AppTypography {
         .copyWith(
           displayLarge: base.displayLarge?.copyWith(
             fontWeight: FontWeight.w800,
-            letterSpacing: -0.02,
+            letterSpacing: -1.0, // negative tracking for large text
+            height: 1.05, // tight leading
+            color: primaryText,
+          ),
+          displayMedium: base.displayMedium?.copyWith(
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.5,
+            height: 1.1,
+            color: primaryText,
+          ),
+          displaySmall: base.displaySmall?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.25,
+            height: 1.15,
+            color: primaryText,
+          ),
+          headlineLarge: base.headlineLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.25,
+            height: 1.15,
             color: primaryText,
           ),
           headlineMedium: base.headlineMedium?.copyWith(
             fontWeight: FontWeight.w700,
-            letterSpacing: -0.02,
+            letterSpacing: -0.15,
+            height: 1.2,
+            color: primaryText,
+          ),
+          headlineSmall: base.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.1,
+            height: 1.2,
             color: primaryText,
           ),
           titleLarge: base.titleLarge?.copyWith(
             fontWeight: FontWeight.w700,
+            letterSpacing: 0,
+            height: 1.25,
             color: primaryText,
           ),
           titleMedium: base.titleMedium?.copyWith(
             fontWeight: FontWeight.w600,
+            letterSpacing: 0.1,
+            height: 1.3,
             color: primaryText,
           ),
           titleSmall: base.titleSmall?.copyWith(
             fontWeight: FontWeight.w600,
+            letterSpacing: 0.1,
+            height: 1.3,
             color: primaryText,
           ),
-          bodyLarge: base.bodyLarge?.copyWith(color: primaryText),
-          bodyMedium: base.bodyMedium?.copyWith(color: primaryText),
-          bodySmall: base.bodySmall?.copyWith(color: secondaryText),
+          bodyLarge: base.bodyLarge?.copyWith(
+            letterSpacing: 0.15,
+            height: 1.5, // looser leading for body
+            color: primaryText,
+          ),
+          bodyMedium: base.bodyMedium?.copyWith(
+            letterSpacing: 0.2,
+            height: 1.5,
+            color: primaryText,
+          ),
+          bodySmall: base.bodySmall?.copyWith(
+            letterSpacing: 0.25,
+            height: 1.5,
+            color: secondaryText,
+          ),
           labelLarge: base.labelLarge?.copyWith(
             fontWeight: FontWeight.w600,
+            letterSpacing: 0.25,
             color: primaryText,
           ),
           labelMedium: base.labelMedium?.copyWith(
             fontWeight: FontWeight.w500,
+            letterSpacing: 0.3,
             color: secondaryText,
           ),
           labelSmall: base.labelSmall?.copyWith(
             fontWeight: FontWeight.w500,
+            letterSpacing: 0.35, // positive tracking for small text
             color: secondaryText,
           ),
         )

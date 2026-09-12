@@ -6,6 +6,6 @@ enum UserRole {
   String get label => switch (this) {
         UserRole.patient => 'Patient',
         UserRole.doctor => 'Doctor',
-        UserRole.pharmacist => 'Pharmacist',
+        UserRole.pharmacist => 'Clinic Assistant',
       };
 }

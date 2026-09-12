@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../../../config/router/route_paths.dart';
-import '../../../../config/theme/app_colors.dart';
-import '../../../../config/theme/app_radii.dart';
+import '../../../../shared/utils/spring_curve.dart';
 import '../../../../config/theme/app_theme.dart';
 import '../../../../shared/presentation/widgets/async_section.dart';
 import '../../../../shared/presentation/widgets/section_header.dart';
@@ -13,16 +13,10 @@ import '../../../appointments/presentation/pages/book_appointment_page.dart';
 import '../../../appointments/presentation/pages/reschedule_page.dart';
 import '../../../appointments/presentation/providers/appointments_providers.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
-import '../../../health_tips/data/health_tips_data.dart';
-import '../../../health_tips/presentation/pages/health_tips_page.dart';
-import '../../../health_tips/presentation/widgets/health_tip_card.dart';
 import '../../../patient/presentation/providers/patient_providers.dart';
-import '../../domain/health_insights.dart';
-import '../providers/health_dashboard_providers.dart';
-import '../widgets/health_snapshot_card.dart';
+import '../../../appointments/presentation/widgets/queue_status_view.dart';
 import '../widgets/next_appointment_banner.dart';
 import '../widgets/wellness_goal_row.dart';
-import '../widgets/wellness_insight_card.dart';
 
 /// P4 — Patient Dashboard: two big hero actions (Book Appointment,
 /// Prescriptions) up top, a Health Tips strip, then goals/next-appointment/
@@ -41,7 +35,6 @@ class DashboardPage extends ConsumerWidget {
     // value rather than collapsing a loading/errored fetch into "empty".
     final goalsAsync = ref.watch(wellnessGoalsProvider(user.id));
     final profileAsync = ref.watch(patientProfileProvider(user.id));
-    final vitals = ref.watch(dashboardSummariesProvider(user.id));
     final nextAppointment = ref
         .watch(nextUpcomingAppointmentProvider(user.id))
         .valueOrNull;
@@ -95,7 +88,7 @@ class DashboardPage extends ConsumerWidget {
                     color: colors.textPrimary,
                   ),
                 ),
-              ],
+              ].animate().fadeIn(duration: 600.ms, curve: AppleSpringCurve()).slideY(begin: 0.2),
             ),
             const SizedBox(height: 20),
             Row(
@@ -103,9 +96,9 @@ class DashboardPage extends ConsumerWidget {
                 Expanded(
                   child: _HeroActionCard(
                     emoji: '📅',
-                    title: 'Book Appointment',
+                    title: 'Book\nAppointments',
                     subtitle: 'Schedule your next visit',
-                    background: AppColors.inkBlack,
+                    background: const Color(0xFF5B17B1), // Vibrant Purple
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => const BookAppointmentPage(),
@@ -119,70 +112,45 @@ class DashboardPage extends ConsumerWidget {
                     emoji: '💊',
                     title: 'Prescriptions',
                     subtitle: 'View your medications',
-                    background: colors.patientAccent,
+                    background: const Color(0xFF0F5B33), // Vibrant Green
                     onTap: () => context.go(RoutePaths.patientPrescriptions),
                   ),
                 ),
-              ],
+              ].animate(interval: 50.ms).fadeIn(duration: 600.ms, curve: AppleSpringCurve()).slideY(begin: 0.1),
             ),
-            // The snapshot card and insight list both make claims derived
-            // from the profile (and, for insights, goals). Neither may
-            // render until the profile fetch has settled — a still-loading
-            // profile is not "no profile", and rendering nothing/wrong
-            // during that window is what finding 2 flagged.
             AsyncSection(
               value: profileAsync,
               data: (profile) {
                 if (profile == null) return const SizedBox.shrink();
-                final insights = buildHealthInsights(
-                  profile,
-                  goalsAsync.valueOrNull ?? [],
-                  vitals: vitals,
-                );
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 20),
-                    HealthSnapshotCard(profile: profile),
-                    if (insights.isNotEmpty) ...[
+                    QueueStatusView(
+                      compact: true,
+                      onTap: () => context.go(RoutePaths.patientAppointments),
+                    ),
+                    if (nextAppointment != null) ...[
                       const SizedBox(height: 20),
-                      Text(
-                        'Wellness Insights',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 10),
-                      Column(
-                        children: [
-                          for (final insight in insights) ...[
-                            WellnessInsightCard(insight: insight),
-                            const SizedBox(height: 8),
-                          ],
-                        ],
+                      NextAppointmentBanner(
+                        appointment: nextAppointment,
+                        doctorName: doctor?.fullName ?? 'Your doctor',
+                        onViewDetails: () => context.push(
+                          RoutePaths.appointmentDetail(nextAppointment.id),
+                        ),
+                        onReschedule: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                ReschedulePage(appointment: nextAppointment),
+                          ),
+                        ),
                       ),
                     ],
                   ],
                 );
               },
             ),
-            const SizedBox(height: 24),
-            SectionHeader(
-              title: 'Health Tips',
-              actionLabel: 'See all',
-              onAction: () => Navigator.of(
-                context,
-              ).push(MaterialPageRoute(builder: (_) => const HealthTipsPage())),
-            ),
-            const SizedBox(height: 10),
-            SizedBox(
-              height: 178,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: kHealthTips.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 12),
-                itemBuilder: (context, i) =>
-                    HealthTipCard(tip: kHealthTips[i], width: 220),
-              ),
-            ),
+
             const SizedBox(height: 24),
             SectionHeader(
               title: 'Your Goals This Week',
@@ -213,70 +181,8 @@ class DashboardPage extends ConsumerWidget {
                       ],
                     ),
             ),
-            const SizedBox(height: 6),
-            if (nextAppointment != null &&
-                nextAppointment.scheduledAt.year == now.year &&
-                nextAppointment.scheduledAt.month == now.month &&
-                nextAppointment.scheduledAt.day == now.day) ...[
-              GestureDetector(
-                onTap: () => context.go(RoutePaths.patientQueue),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: colors.info.withValues(alpha: 0.08),
-                    border: Border.all(
-                      color: colors.info.withValues(alpha: 0.4),
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.confirmation_number_outlined,
-                        size: 18,
-                        color: colors.info,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          "You're checked in today — view your live queue number",
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w600,
-                            color: colors.textPrimary,
-                          ),
-                        ),
-                      ),
-                      Icon(
-                        Icons.chevron_right,
-                        size: 18,
-                        color: colors.textSecondary,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-            if (nextAppointment != null) ...[
-              NextAppointmentBanner(
-                appointment: nextAppointment,
-                doctorName: doctor?.fullName ?? 'Your doctor',
-                onViewDetails: () => context.push(
-                  RoutePaths.appointmentDetail(nextAppointment.id),
-                ),
-                onReschedule: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        ReschedulePage(appointment: nextAppointment),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-            ],
+            const SizedBox(height: 20),
+
             Text(
               'Today\'s Reminders',
               style: Theme.of(context).textTheme.titleMedium,
@@ -323,25 +229,43 @@ class _HeroActionCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        height: 152,
-        padding: const EdgeInsets.all(16),
+        height: 170,
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: background,
-          borderRadius: BorderRadius.circular(AppRadii.lg),
+          borderRadius: BorderRadius.circular(32),
+          gradient: RadialGradient(
+            center: Alignment.topLeft,
+            radius: 1.8,
+            colors: [
+              background,
+              background.withValues(alpha: 0.4),
+              const Color(0xFF101015),
+            ],
+            stops: const [0.0, 0.5, 1.0],
+          ),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+          boxShadow: [
+            BoxShadow(
+              color: background.withValues(alpha: 0.25),
+              blurRadius: 30,
+              spreadRadius: -10,
+              offset: const Offset(0, 10),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Container(
-              width: 36,
-              height: 36,
+              width: 44,
+              height: 44,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.18),
-                borderRadius: BorderRadius.circular(10),
+                color: Colors.white.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
               ),
-              child: Text(emoji, style: const TextStyle(fontSize: 18)),
+              child: Text(emoji, style: const TextStyle(fontSize: 20)),
             ),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -351,15 +275,15 @@ class _HeroActionCard extends StatelessWidget {
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w700,
-                    fontSize: 15,
+                    fontSize: 16,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 6),
                 Text(
                   subtitle,
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.75),
-                    fontSize: 11,
+                    color: Colors.white.withValues(alpha: 0.6),
+                    fontSize: 12,
                   ),
                 ),
               ],
@@ -370,3 +294,4 @@ class _HeroActionCard extends StatelessWidget {
     );
   }
 }
+

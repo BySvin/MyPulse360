@@ -109,6 +109,15 @@ class MockHealthMetricsDataSource implements HealthMetricsDataSource {
           measuredAt: day,
           recordedBy: 'device-sync',
         );
+      case MetricType.temperature:
+        return HealthMetric(
+          id: generateId(),
+          patientId: patientId,
+          type: type,
+          value: 36.5 + _random.nextDouble() * 1.2,
+          measuredAt: day,
+          recordedBy: 'device-sync',
+        );
     }
   }
 
@@ -176,6 +185,7 @@ class MockHealthMetricsDataSource implements HealthMetricsDataSource {
         (m.value <= 130 && (m.secondaryValue ?? 0) <= 85) ? (true, 'Normal') : (false, 'Elevated'),
       MetricType.bloodSugar => m.value <= 125 ? (true, 'Good') : (false, 'High'),
       MetricType.heartRate => (m.value >= 60 && m.value <= 100) ? (true, 'Normal') : (false, 'Elevated'),
+      MetricType.temperature => (m.value >= 36.1 && m.value <= 37.2) ? (true, 'Normal') : (false, 'Fever'),
       MetricType.steps => m.value >= 5000 ? (true, 'Active') : (false, 'Low'),
       MetricType.sleepHours => m.value >= 6.5 ? (true, 'Rested') : (false, 'Low'),
       MetricType.caloriesBurned => (true, 'Tracked'),

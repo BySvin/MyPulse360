@@ -50,6 +50,22 @@ class SupabasePatientDataSource implements PatientDataSource {
     }
   }
 
+  /// `wellness_goals` has an own-row `for all` policy and its `DELETE` wasn't
+  /// carved out when the other tables' were, so `authenticated` can delete
+  /// directly through PostgREST — no RPC needed.
+  @override
+  Future<void> deleteGoal(String patientId, String goalId) async {
+    try {
+      await _client
+          .from('wellness_goals')
+          .delete()
+          .eq('id', goalId)
+          .eq('patient_id', patientId);
+    } catch (e) {
+      throw mapPostgrestError(e);
+    }
+  }
+
   /// `register_patient()` (`supabase/migrations/0018_register_patient.sql`)
   /// already inserts the `patient_profiles` row and assigns the default
   /// doctor, in one transaction, at sign-up. This method has no Supabase

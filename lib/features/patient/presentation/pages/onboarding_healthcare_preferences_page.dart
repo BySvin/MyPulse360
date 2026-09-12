@@ -36,7 +36,6 @@ class _OnboardingHealthcarePreferencesPageState
   String? _language;
   bool _notifyAppointments = true;
   bool _notifyPrescriptions = true;
-  bool _notifyHealthTips = true;
   bool _saving = false;
 
   @override
@@ -60,7 +59,6 @@ class _OnboardingHealthcarePreferencesPageState
           preferredLanguage: (language == null || language.isEmpty) ? null : language,
           notifyAppointments: _notifyAppointments,
           notifyPrescriptions: _notifyPrescriptions,
-          notifyHealthTips: _notifyHealthTips,
         );
     ref.read(patientDataRevisionProvider.notifier).state++;
     if (!mounted) return;
@@ -178,15 +176,6 @@ class _OnboardingHealthcarePreferencesPageState
                             value: _notifyPrescriptions,
                             activeTrackColor: colors.patientAccent,
                             onChanged: (v) => setState(() => _notifyPrescriptions = v),
-                          ),
-                        ),
-                        GroupedListTile(
-                          title: 'Health tips',
-                          leadingIcon: Icons.lightbulb_outline_rounded,
-                          trailing: CupertinoSwitch(
-                            value: _notifyHealthTips,
-                            activeTrackColor: colors.patientAccent,
-                            onChanged: (v) => setState(() => _notifyHealthTips = v),
                           ),
                         ),
                       ],

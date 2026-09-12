@@ -21,6 +21,12 @@
       "type": "dart",
       "deviceId": "chrome",
       "flutterMode": "profile"
+    },
+    {
+      "name": "MyPulse360 (Selected Device)",
+      "request": "launch",
+      "type": "dart",
+      "flutterMode": "debug"
     }
   ]
 }

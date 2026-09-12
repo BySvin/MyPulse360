@@ -126,8 +126,6 @@ Prescriptions · Profile**.
 - **Queue**: today's patients awaiting service.
 - **New Rx**: converts a doctor's "sent to pharmacy" note into a formal
   e-prescription.
-- **Inventory**: stock levels with low-stock highlighting, restock existing
-  items, register new medications ("Custom Medicine Restock").
 - **Verification**: a checklist step before a prescription is marked
   dispensed.
 
@@ -184,15 +182,12 @@ recompute on the dashboard automatically, no manual refresh step.
 Explicitly **not** built today — do not assume otherwise when scoping new
 work against this PRD:
 
-- Nurse and receptionist roles.
-- A standalone administrator role separate from "doctor."
 - A real backend/API/database — everything resets on relaunch; the mock
   layer is a behaviorally faithful prototype, not production infrastructure.
 - A connected LLM behind AI Chat (currently rule-based responses).
 - Push notifications, SMS/email reminders, payment/billing, insurance
   claims processing.
-- Multi-clinic support (single `clinicId` seeded throughout).
-
+  
 ## 10. Open Questions
 
 - Should nurse/receptionist roles be added, and with what permission

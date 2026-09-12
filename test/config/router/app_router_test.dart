@@ -75,36 +75,15 @@ void main() {
         ),
       );
 
-      // Splash's own minimum-brand-screen delay, then its poll loop (auth
-      // is already settled so this resolves immediately), then it awaits
-      // the profile future, catches the error, and calls
-      // context.go(RoutePaths.login) itself. Polled with a generous bound
-      // rather than a single fixed sleep — real `Future.delayed` timers
-      // under a loaded test run can land a little later than the nominal
-      // 900ms, and this only needs to notice as soon as it happens.
-      final deadline = DateTime.now().add(const Duration(seconds: 5));
-      while (router.state.matchedLocation == RoutePaths.splash &&
-          DateTime.now().isBefore(deadline)) {
-        await tester.pump(const Duration(milliseconds: 100));
-      }
+      // SplashPage keeps the brand screen up for a minimum 900ms before it
+      // even looks at the profile, and schedules that as a one-shot timer.
+      // Elapse past it, let the errored fetch settle, and let the redirect
+      // (re)mount the login screen.
+      await tester.pump(const Duration(milliseconds: 900));
+      await tester.pump();
+      await tester.pumpAndSettle(const Duration(milliseconds: 100));
 
-      expect(
-        router.state.matchedLocation,
-        RoutePaths.login,
-        reason:
-            'splash sends a failed profile fetch to login; the router '
-            'must not fight that by redirecting elsewhere',
-      );
-
-      // The regression this test exists to catch: the redirect callback
-      // re-runs on every navigation event. If it still treated "errored"
-      // as "not onboarded", it would immediately bounce this login-page
-      // landing to onboarding — which is exactly what the pre-fix guard
-      // did, since it only excused `isLoading`, not `hasError`.
-      expect(
-        router.state.matchedLocation,
-        isNot(RoutePaths.onboardingWelcome),
-      );
+      expect(router.state.matchedLocation, RoutePaths.login);
     },
   );
 }

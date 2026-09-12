@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../shared/mock/mock_database.dart';
+import '../../../appointments/domain/entities/appointment.dart';
 import '../../../appointments/presentation/providers/appointments_providers.dart';
 import '../../../doctor/domain/entities/consultation.dart';
 import '../../../prescriptions/domain/entities/prescription.dart';
@@ -27,4 +28,9 @@ final awaitingPrescriptionProvider = Provider<List<Consultation>>((ref) {
   ref.watch(prescriptionsRevisionProvider);
   ref.watch(appointmentsRevisionProvider);
   return ref.watch(pharmacistRepositoryProvider).getAwaitingPrescription();
+});
+
+final pharmacistTodaysAppointmentsProvider = Provider<List<Appointment>>((ref) {
+  ref.watch(appointmentsRevisionProvider);
+  return ref.watch(pharmacistRepositoryProvider).getTodaysAppointments();
 });

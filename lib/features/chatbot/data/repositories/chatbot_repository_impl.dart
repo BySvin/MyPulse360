@@ -9,9 +9,26 @@ class ChatbotRepositoryImpl implements ChatbotRepository {
   final ChatbotDataSource _dataSource;
 
   @override
-  ChatConversation getConversation(String patientId) => _dataSource.getConversation(patientId);
+  Future<List<ChatConversation>> getConversations(String patientId) =>
+      _dataSource.getConversations(patientId);
 
   @override
-  Future<ChatMessage> sendMessage(String patientId, String text) =>
-      _dataSource.sendMessage(patientId, text);
+  Future<ChatConversation> getOrCreateActiveConversation(String patientId) =>
+      _dataSource.getOrCreateActiveConversation(patientId);
+
+  @override
+  Future<ChatConversation> startNewConversation(String patientId) =>
+      _dataSource.startNewConversation(patientId);
+
+  @override
+  Future<ChatMessage> sendMessage({
+    required String patientId,
+    required String conversationId,
+    required String text,
+  }) =>
+      _dataSource.sendMessage(
+        patientId: patientId,
+        conversationId: conversationId,
+        text: text,
+      );
 }

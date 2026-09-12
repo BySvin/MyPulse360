@@ -44,7 +44,8 @@ class ApplyLeavePage extends ConsumerWidget {
     if (user == null) return const SizedBox.shrink();
 
     final today = DateTime.now();
-    final leave = ref.watch(staffLeaveRequestsProvider(user.id));
+    final leave =
+        ref.watch(staffLeaveRequestsProvider(user.id)).valueOrNull ?? const [];
     final upcoming = leave.where((l) => !l.endDate.isBefore(DateTime(today.year, today.month, today.day))).toList()
       ..sort((a, b) => a.startDate.compareTo(b.startDate));
     final past = leave.where((l) => l.endDate.isBefore(DateTime(today.year, today.month, today.day))).toList();
@@ -61,7 +62,7 @@ class ApplyLeavePage extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Apply Leave', style: Theme.of(context).textTheme.headlineSmall),
+                      Text('Take Leave', style: Theme.of(context).textTheme.headlineSmall),
                       const SizedBox(height: 2),
                       Text(
                         'Book time off. Patients stop seeing you as available on those dates.',
@@ -75,7 +76,7 @@ class ApplyLeavePage extends ConsumerWidget {
                   onPressed: () => _apply(context, ref, user.id),
                   style: FilledButton.styleFrom(backgroundColor: colors.clinicianAccent),
                   icon: const Icon(Icons.beach_access_outlined, size: 18),
-                  label: const Text('Apply'),
+                  label: const Text('Take Leave'),
                 ),
               ],
             ),
@@ -85,7 +86,7 @@ class ApplyLeavePage extends ConsumerWidget {
             if (upcoming.isEmpty)
               const EmptyStateView(
                 title: 'No leave booked',
-                message: 'Apply for leave and those dates close for patient booking straight away.',
+                message: 'Take leave and those dates close for patient booking straight away.',
                 icon: Icons.beach_access_outlined,
               )
             else

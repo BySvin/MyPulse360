@@ -62,6 +62,7 @@ class SupabaseAppointmentsDataSource implements AppointmentsDataSource {
         'p_doctor': doctorId,
         'p_date': _dateOnly(date),
       });
+      if (rows == null) return [];
       return (rows as List).map((r) => timeSlotFromRow(Map<String, dynamic>.from(r as Map))).toList();
     } catch (e) {
       throw mapPostgrestError(e);
@@ -78,6 +79,7 @@ class SupabaseAppointmentsDataSource implements AppointmentsDataSource {
         'p_doctor': doctorId,
         'p_month': _dateOnly(DateTime(month.year, month.month, 1)),
       });
+      if (rows == null) return [];
       return (rows as List).map((r) {
         final m = Map<String, dynamic>.from(r as Map);
         return (
@@ -171,7 +173,8 @@ class SupabaseAppointmentsDataSource implements AppointmentsDataSource {
         'p_type': appointmentType,
         'p_reason': reasonForVisit,
       });
-      return appointmentFromRow(Map<String, dynamic>.from(row as Map));
+      final map = row is List ? row.first as Map : row as Map;
+      return appointmentFromRow(Map<String, dynamic>.from(map));
     } catch (e) {
       throw mapPostgrestError(e);
     }
@@ -188,7 +191,8 @@ class SupabaseAppointmentsDataSource implements AppointmentsDataSource {
         'p_appointment': appointmentId,
         'p_status': appointmentStatusToDb(status),
       });
-      return appointmentFromRow(Map<String, dynamic>.from(row as Map));
+      final map = row is List ? row.first as Map : row as Map;
+      return appointmentFromRow(Map<String, dynamic>.from(map));
     } catch (e) {
       throw mapPostgrestError(e);
     }
@@ -201,7 +205,8 @@ class SupabaseAppointmentsDataSource implements AppointmentsDataSource {
         'p_appointment': appointmentId,
         'p_new_at': newTime.toUtc().toIso8601String(),
       });
-      return appointmentFromRow(Map<String, dynamic>.from(row as Map));
+      final map = row is List ? row.first as Map : row as Map;
+      return appointmentFromRow(Map<String, dynamic>.from(map));
     } catch (e) {
       throw mapPostgrestError(e);
     }

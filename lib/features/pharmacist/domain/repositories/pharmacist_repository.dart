@@ -1,3 +1,4 @@
+import '../../../appointments/domain/entities/appointment.dart';
 import '../../../doctor/domain/entities/consultation.dart';
 import '../../../prescriptions/domain/entities/prescription.dart';
 import '../entities/pharmacist_profile.dart';
@@ -11,4 +12,8 @@ abstract class PharmacistRepository {
   /// Completed consultations still waiting for the pharmacist to enter a
   /// prescription.
   List<Consultation> getAwaitingPrescription();
+
+  List<Appointment> getTodaysAppointments();
+
+  Future<void> logTemperature(String appointmentId, String patientId, String doctorId, double temperature);
 }

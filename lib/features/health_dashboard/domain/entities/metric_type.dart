@@ -5,6 +5,7 @@ enum MetricType {
   bloodPressure,
   bloodSugar,
   heartRate,
+  temperature,
   steps,
   sleepHours,
   caloriesBurned,
@@ -15,6 +16,7 @@ enum MetricType {
         MetricType.bloodPressure => 'Blood Pressure',
         MetricType.bloodSugar => 'Blood Sugar',
         MetricType.heartRate => 'Heart Rate',
+        MetricType.temperature => 'Temperature',
         MetricType.steps => 'Steps',
         MetricType.sleepHours => 'Sleep',
         MetricType.caloriesBurned => 'Calories',
@@ -26,6 +28,7 @@ enum MetricType {
         MetricType.bloodPressure => 'mmHg',
         MetricType.bloodSugar => 'mg/dL',
         MetricType.heartRate => 'bpm',
+        MetricType.temperature => '\u00B0C',
         MetricType.steps => 'steps',
         MetricType.sleepHours => 'h',
         MetricType.caloriesBurned => 'kcal',
@@ -37,6 +40,7 @@ enum MetricType {
         MetricType.bloodPressure => Icons.favorite_border,
         MetricType.bloodSugar => Icons.water_drop_outlined,
         MetricType.heartRate => Icons.monitor_heart_outlined,
+        MetricType.temperature => Icons.thermostat,
         MetricType.steps => Icons.directions_walk_rounded,
         MetricType.sleepHours => Icons.bedtime_outlined,
         MetricType.caloriesBurned => Icons.local_fire_department_outlined,
@@ -48,7 +52,7 @@ enum MetricType {
   /// realistically only ever come from a connected device, shown in their
   /// own "Activity & Fitness" section instead.
   bool get isCoreVital => switch (this) {
-        MetricType.weight || MetricType.bloodPressure || MetricType.bloodSugar || MetricType.heartRate => true,
+        MetricType.weight || MetricType.bloodPressure || MetricType.bloodSugar || MetricType.heartRate || MetricType.temperature => true,
         _ => false,
       };
 }

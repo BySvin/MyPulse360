@@ -5,13 +5,11 @@ class AttendanceRecord extends Equatable {
     required this.id,
     required this.staffId,
     required this.clockInAt,
-    this.shiftId,
     this.clockOutAt,
   });
 
   final String id;
   final String staffId;
-  final String? shiftId;
   final DateTime clockInAt;
   final DateTime? clockOutAt;
 
@@ -23,12 +21,11 @@ class AttendanceRecord extends Equatable {
     return AttendanceRecord(
       id: id,
       staffId: staffId,
-      shiftId: shiftId,
       clockInAt: clockInAt,
       clockOutAt: clockOutAt ?? this.clockOutAt,
     );
   }
 
   @override
-  List<Object?> get props => [id, staffId, shiftId, clockInAt, clockOutAt];
+  List<Object?> get props => [id, staffId, clockInAt, clockOutAt];
 }
